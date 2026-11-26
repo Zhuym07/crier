@@ -1,7 +1,7 @@
 [Setup]
 AppId=Crier
 AppName=Crier
-AppVersion=0.1.2
+AppVersion=0.1.3
 SetupIconFile=..\brand.ico
 AppPublisher=Crier
 DefaultDirName={localappdata}\Programs\Crier
