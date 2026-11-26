@@ -1,0 +1,16 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "crier",
+  "outputfilename": "crier",
+  "frontend:install": "",
+  "frontend:build": "",
+  "author": {
+    "name": "Zhuym",
+    "email": ""
+  },
+  "info": {
+    "productName": "传令 Crier",
+    "productVersion": "1.0.0",
+    "comments": "邮件转小票的桌面端"
+  }
+}

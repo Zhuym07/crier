@@ -1,0 +1,11 @@
+/build/
+/dist/
+/out/
+*.exe
+*.test
+*.out
+.DS_Store
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.tools/

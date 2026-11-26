@@ -1,0 +1,302 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>传令 Crier</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="mark">令</span>
+      <span class="brand-text"><strong>传令</strong><span>Crier</span></span>
+    </div>
+    <nav class="nav">
+      <button type="button" class="nav-item is-active" data-view="dashboard">首页</button>
+      <button type="button" class="nav-item" data-view="settings">设置</button>
+    </nav>
+    <div class="sidebar-foot">
+      <span class="dot" id="foot-dot"></span>
+      <span id="foot-status">未选择打印机</span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="view is-active" id="view-dashboard">
+      <header class="page-head">
+        <div>
+          <h1>首页</h1>
+          <p class="sub">邮件到达后会自动打印，并在这里留下凭条。</p>
+        </div>
+        <div class="page-actions">
+          <span class="chip" id="chip-status">待配置</span>
+          <button type="button" class="btn" id="btn-check">检查现在</button>
+        </div>
+      </header>
+
+      <div class="cards">
+        <article class="card">
+          <h2>打印机</h2>
+          <p class="value" id="dash-printer">未选择</p>
+          <div class="row-actions">
+            <button type="button" class="btn btn-quiet" id="btn-dash-print">打印测试页</button>
+          </div>
+        </article>
+        <article class="card">
+          <h2>邮箱通道</h2>
+          <p class="value" id="dash-email">未启用</p>
+          <p class="hint" id="dash-mailbox"></p>
+        </article>
+        <article class="card">
+          <h2>AI 整理</h2>
+          <p class="value" id="dash-ai">未启用</p>
+          <p class="hint" id="dash-model"></p>
+        </article>
+      </div>
+
+      <section class="stack">
+        <div class="stack-head">
+          <h2>凭条记录</h2>
+          <button type="button" class="btn btn-quiet btn-sm" id="btn-history">刷新</button>
+        </div>
+        <ul class="entries" id="entries"></ul>
+        <p class="empty" id="entries-empty">还没有凭条。有新邮件时这里会出现。</p>
+      </section>
+    </section>
+
+    <section class="view" id="view-settings">
+      <header class="page-head">
+        <div>
+          <h1>设置</h1>
+          <p class="sub">改动需要保存后才会生效。</p>
+        </div>
+        <div class="page-actions">
+          <button type="button" class="btn btn-quiet" id="btn-rerun">重新引导</button>
+          <button type="button" class="btn" id="btn-save">保存</button>
+        </div>
+      </header>
+
+      <form class="settings" id="settings-form" novalidate>
+        <article class="card">
+          <h2>打印机</h2>
+          <div class="field">
+            <label for="s-printer">设备</label>
+            <div class="field-row">
+              <select id="s-printer" data-field="printer"></select>
+              <button type="button" class="btn btn-quiet" id="s-printers-refresh">刷新</button>
+            </div>
+          </div>
+          <div class="row-actions">
+            <button type="button" class="btn btn-quiet" id="s-test-print">测试打印</button>
+            <button type="button" class="btn btn-quiet" id="s-preview">看效果</button>
+          </div>
+          <div class="preview" id="s-preview-box" hidden>
+            <img id="s-preview-img" alt="小票预览" />
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>邮箱通道</h2>
+            <button type="button" class="switch" role="switch" aria-checked="false"
+                    data-field="email.enabled" data-kind="bool" aria-label="启用邮箱通道"><span></span></button>
+          </div>
+          <div class="field">
+            <label for="s-email-address">邮箱地址</label>
+            <input id="s-email-address" type="email" autocomplete="off" spellcheck="false"
+                   data-field="email.address" placeholder="name@example.com" />
+          </div>
+          <div class="field">
+            <label for="s-email-username">登录账号</label>
+            <input id="s-email-username" type="text" autocomplete="off" spellcheck="false"
+                   data-field="email.username" placeholder="通常是完整邮箱地址" />
+          </div>
+          <div class="field">
+            <label for="s-email-secret">授权码 / 密码</label>
+            <input id="s-email-secret" type="password" autocomplete="off"
+                   data-field="email.secret" placeholder="IMAP 授权码" />
+          </div>
+          <div class="field">
+            <label for="s-email-mailbox">收取文件夹</label>
+            <input id="s-email-mailbox" type="text" autocomplete="off" spellcheck="false"
+                   data-field="email.mailbox" placeholder="INBOX" />
+          </div>
+          <div class="row-actions">
+            <button type="button" class="btn btn-quiet" id="s-test-email">测试连接</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>AI 整理</h2>
+            <button type="button" class="switch" role="switch" aria-checked="false"
+                    data-field="ai.enabled" data-kind="bool" aria-label="启用 AI 整理"><span></span></button>
+          </div>
+          <div class="field">
+            <label for="s-ai-url">接口地址</label>
+            <input id="s-ai-url" type="text" autocomplete="off" spellcheck="false"
+                   data-field="ai.url" placeholder="https://api.example.com/v1/chat/completions" />
+          </div>
+          <div class="field">
+            <label for="s-ai-key">密钥</label>
+            <input id="s-ai-key" type="password" autocomplete="off"
+                   data-field="ai.key" placeholder="sk-..." />
+          </div>
+          <div class="field">
+            <label for="s-ai-model">模型</label>
+            <input id="s-ai-model" type="text" autocomplete="off" spellcheck="false"
+                   data-field="ai.model" placeholder="gpt-4o-mini" />
+          </div>
+          <div class="row-actions">
+            <button type="button" class="btn btn-quiet" id="s-test-ai">测试接口</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>开机自启</h2>
+            <button type="button" class="switch" role="switch" aria-checked="false"
+                    data-field="autoStart" data-kind="bool" aria-label="开机自启"><span></span></button>
+          </div>
+          <p class="hint">登录 Windows 后在后台启动，不弹出窗口。</p>
+        </article>
+      </form>
+    </section>
+  </main>
+</div>
+
+<div class="oobe" id="oobe" hidden>
+  <div class="oobe-inner">
+    <div class="oobe-brand">
+      <span class="mark lg">令</span>
+      <div><strong>传令 Crier</strong><span>把邮件打印成一张小票</span></div>
+    </div>
+
+    <ol class="steps" id="steps">
+      <li data-step="0"><span class="dot">1</span><span class="lbl">开始</span></li>
+      <li data-step="1"><span class="dot">2</span><span class="lbl">打印机</span></li>
+      <li data-step="2"><span class="dot">3</span><span class="lbl">邮箱</span></li>
+      <li data-step="3"><span class="dot">4</span><span class="lbl">AI</span></li>
+      <li data-step="4"><span class="dot">5</span><span class="lbl">完成</span></li>
+    </ol>
+
+    <div class="oobe-card">
+      <section class="pane is-active" data-pane="0">
+        <h2>三步就能用起来</h2>
+        <p class="lead">选一台小票打印机，填上邮箱，剩下的交给传令。新邮件到达时会自动排成小票，在后台打印，并在这里留下记录。</p>
+        <ul class="bullets">
+          <li><b>1</b> 选择 58mm 小票打印机</li>
+          <li><b>2</b> 填邮箱授权码，随时可以测一下</li>
+          <li><b>3</b> 可选：接入 AI 把正文缩成几行</li>
+        </ul>
+      </section>
+
+      <section class="pane" data-pane="1">
+        <h2>选择打印机</h2>
+        <p class="lead">列表来自 Windows 已安装的打印机。选好后可以立刻打一张测试页。</p>
+        <div class="field">
+          <label for="o-printer">设备</label>
+          <div class="field-row">
+            <select id="o-printer" data-field="printer"></select>
+            <button type="button" class="btn btn-quiet" id="o-printers-refresh">刷新</button>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn btn-quiet" id="o-test-print">测试打印</button>
+          <button type="button" class="btn btn-quiet" id="o-preview">看效果</button>
+        </div>
+        <div class="preview" id="o-preview-box" hidden>
+          <img id="o-preview-img" alt="小票预览" />
+        </div>
+      </section>
+
+      <section class="pane" data-pane="2">
+        <h2>连接邮箱</h2>
+        <p class="lead">只读取、不删除。建议用邮箱服务商提供的 IMAP 授权码，而不是登录密码。</p>
+        <div class="field">
+          <label for="o-email-address">邮箱地址</label>
+          <input id="o-email-address" type="email" autocomplete="off" spellcheck="false"
+                 data-field="email.address" placeholder="name@example.com" />
+        </div>
+        <div class="field">
+          <label for="o-email-username">登录账号</label>
+          <input id="o-email-username" type="text" autocomplete="off" spellcheck="false"
+                 data-field="email.username" placeholder="通常是完整邮箱地址" />
+        </div>
+        <div class="field">
+          <label for="o-email-secret">授权码 / 密码</label>
+          <input id="o-email-secret" type="password" autocomplete="off"
+                 data-field="email.secret" placeholder="IMAP 授权码" />
+        </div>
+        <div class="field">
+          <label for="o-email-mailbox">收取文件夹</label>
+          <input id="o-email-mailbox" type="text" autocomplete="off" spellcheck="false"
+                 data-field="email.mailbox" placeholder="INBOX" />
+        </div>
+        <div class="field field-inline">
+          <label for="o-email-enabled">启用邮箱通道</label>
+          <button type="button" class="switch" id="o-email-enabled" role="switch" aria-checked="false"
+                  data-field="email.enabled" data-kind="bool" aria-label="启用邮箱通道"><span></span></button>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn btn-quiet" id="o-test-email">测试连接</button>
+        </div>
+      </section>
+
+      <section class="pane" data-pane="3">
+        <h2>AI 整理（可选）</h2>
+        <p class="lead">开启后，长邮件会被压成几行字再打印。不填也能用。</p>
+        <div class="field">
+          <label for="o-ai-url">接口地址</label>
+          <input id="o-ai-url" type="text" autocomplete="off" spellcheck="false"
+                 data-field="ai.url" placeholder="https://api.example.com/v1/chat/completions" />
+        </div>
+        <div class="field">
+          <label for="o-ai-key">密钥</label>
+          <input id="o-ai-key" type="password" autocomplete="off"
+                 data-field="ai.key" placeholder="sk-..." />
+        </div>
+        <div class="field">
+          <label for="o-ai-model">模型</label>
+          <input id="o-ai-model" type="text" autocomplete="off" spellcheck="false"
+                 data-field="ai.model" placeholder="gpt-4o-mini" />
+        </div>
+        <div class="field field-inline">
+          <label for="o-ai-enabled">启用 AI 整理</label>
+          <button type="button" class="switch" id="o-ai-enabled" role="switch" aria-checked="false"
+                  data-field="ai.enabled" data-kind="bool" aria-label="启用 AI 整理"><span></span></button>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn btn-quiet" id="o-test-ai">测试接口</button>
+        </div>
+      </section>
+
+      <section class="pane" data-pane="4">
+        <h2>就绪</h2>
+        <p class="lead">点完成后传令开始收取邮件。随时可以在设置里改这些内容。</p>
+        <div class="field field-inline">
+          <label for="o-autostart">开机自启</label>
+          <button type="button" class="switch" id="o-autostart" role="switch" aria-checked="false"
+                  data-field="autoStart" data-kind="bool" aria-label="开机自启"><span></span></button>
+        </div>
+        <dl class="summary" id="o-summary"></dl>
+      </section>
+    </div>
+
+    <footer class="oobe-foot">
+      <button type="button" class="btn btn-quiet" id="o-prev">上一步</button>
+      <div class="spacer"></div>
+      <button type="button" class="btn btn-quiet" id="o-skip" hidden>跳过设置</button>
+      <button type="button" class="btn" id="o-next">下一步</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
