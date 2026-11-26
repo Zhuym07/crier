@@ -387,6 +387,19 @@ function toast(message, isError = false) {
 /* ---------- 事件与启动 ---------- */
 
 function bindEvents() {
+  const guide = $('#gmail-guide');
+  for (const container of $$('[data-gmail-guide]')) {
+    container.append(guide.content.cloneNode(true));
+    $('[data-gmail-server]', container).addEventListener('click', () => {
+      const address = $('[data-field="email.address"]', container.parentElement);
+      address.value = 'imap.gmail.com:993';
+      address.focus();
+    });
+    $('[data-gmail-help]', container).addEventListener('click', () => {
+      window.runtime.BrowserOpenURL('https://support.google.com/accounts/answer/185833?hl=zh-Hans');
+    });
+  }
+
   for (const item of $$('.nav-item')) {
     item.addEventListener('click', () => showView(item.dataset.view));
   }

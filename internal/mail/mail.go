@@ -35,7 +35,7 @@ const (
 // Every email event is a reminder for crier to summarise.
 const (
 	source   = "email"
-	template = "reminder"
+	template = "mail"
 	ai       = "classify_summarize"
 )
 
@@ -264,6 +264,14 @@ func eventFor(validity uint32, msg *imapclient.FetchMessageBuffer, body string, 
 	if env := msg.Envelope; env != nil {
 		if subject := strings.TrimSpace(env.Subject); subject != "" {
 			event.Title = subject
+		}
+		if len(env.From) > 0 {
+			sender := env.From[0]
+			label := sender.Name
+			if label == "" && sender.Host != "" {
+				label = sender.Mailbox + "@" + sender.Host
+			}
+			event.Fields = map[string]string{"sender": label}
 		}
 		if !env.Date.IsZero() {
 			when = env.Date

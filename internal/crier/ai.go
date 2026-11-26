@@ -14,8 +14,8 @@ import (
 
 func validateAI(c AIConfig) error {
 	u, err := url.Parse(c.URL)
-	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || c.Model == "" || c.Key == "" {
-		return errors.New("AI 需要 HTTPS 接口、模型名称和 API Key")
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil || c.Model == "" {
+		return errors.New("请填写 HTTP 或 HTTPS 接口及模型名称")
 	}
 	return nil
 }
@@ -33,7 +33,9 @@ func askAI(ctx context.Context, c AIConfig, instruction, content string) (string
 		return "", errors.New("invalid AI endpoint")
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.Key)
+	if c.Key != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Key)
+	}
 	client := http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {

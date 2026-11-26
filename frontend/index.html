@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>传令 Crier</title>
+<link rel="icon" type="image/svg+xml" href="crier-logo.svg" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,7 +12,7 @@
 <div class="shell">
   <aside class="sidebar">
     <div class="brand">
-      <span class="mark">令</span>
+      <img class="brand-logo" src="crier-logo.svg" alt="" />
       <span class="brand-text"><strong>传令</strong><span>Crier</span></span>
     </div>
     <nav class="nav">
@@ -105,10 +106,11 @@
                     data-field="email.enabled" data-kind="bool" aria-label="启用邮箱通道"><span></span></button>
           </div>
           <div class="field">
-            <label for="s-email-address">邮箱地址</label>
-            <input id="s-email-address" type="email" autocomplete="off" spellcheck="false"
-                   data-field="email.address" placeholder="name@example.com" />
+            <label for="s-email-address">IMAP 服务器（含端口）</label>
+            <input id="s-email-address" type="text" autocomplete="off" spellcheck="false"
+                   data-field="email.address" placeholder="imap.example.com:993" />
           </div>
+          <div data-gmail-guide></div>
           <div class="field">
             <label for="s-email-username">登录账号</label>
             <input id="s-email-username" type="text" autocomplete="off" spellcheck="false"
@@ -136,7 +138,7 @@
                     data-field="ai.enabled" data-kind="bool" aria-label="启用 AI 整理"><span></span></button>
           </div>
           <div class="field">
-            <label for="s-ai-url">接口地址</label>
+            <label for="s-ai-url">接口地址（HTTP / HTTPS）</label>
             <input id="s-ai-url" type="text" autocomplete="off" spellcheck="false"
                    data-field="ai.url" placeholder="https://api.example.com/v1/chat/completions" />
           </div>
@@ -157,6 +159,34 @@
 
         <article class="card">
           <div class="card-head">
+            <h2>Telegram 打印</h2>
+            <button type="button" class="switch" role="switch" aria-checked="false"
+                    data-field="telegram.enabled" data-kind="bool" aria-label="启用 Telegram 打印"><span></span></button>
+          </div>
+          <div class="field">
+            <label for="s-telegram-token">Bot Token</label>
+            <input id="s-telegram-token" type="text" style="-webkit-text-security:disc" autocomplete="off" spellcheck="false" data-field="telegram.token" />
+          </div>
+          <div class="field">
+            <label for="s-telegram-proxy">代理地址（可选）</label>
+            <input id="s-telegram-proxy" type="text" autocomplete="off" spellcheck="false" data-field="telegram.proxy_url" />
+          </div>
+          <div class="field">
+            <label for="s-telegram-admin">管理员 Telegram 用户 ID（用逗号分隔）</label>
+            <input id="s-telegram-admin" type="text" autocomplete="off" data-field="telegram.adminIDs" />
+          </div>
+          <div class="field">
+            <label for="s-telegram-log">日志频道 ID（可选）</label>
+            <input id="s-telegram-log" type="text" autocomplete="off" data-field="telegram.logChannel" />
+          </div>
+          <div class="field">
+            <label for="s-telegram-todo">待办频道 ID（可选）</label>
+            <input id="s-telegram-todo" type="text" autocomplete="off" data-field="telegram.todoChannel" />
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
             <h2>开机自启</h2>
             <button type="button" class="switch" role="switch" aria-checked="false"
                     data-field="autoStart" data-kind="bool" aria-label="开机自启"><span></span></button>
@@ -171,7 +201,7 @@
 <div class="oobe" id="oobe" hidden>
   <div class="oobe-inner">
     <div class="oobe-brand">
-      <span class="mark lg">令</span>
+      <img class="brand-logo brand-logo-lg" src="crier-logo.svg" alt="" />
       <div><strong>传令 Crier</strong><span>把邮件打印成一张小票</span></div>
     </div>
 
@@ -217,10 +247,11 @@
         <h2>连接邮箱</h2>
         <p class="lead">只读取、不删除。建议用邮箱服务商提供的 IMAP 授权码，而不是登录密码。</p>
         <div class="field">
-          <label for="o-email-address">邮箱地址</label>
-          <input id="o-email-address" type="email" autocomplete="off" spellcheck="false"
-                 data-field="email.address" placeholder="name@example.com" />
+          <label for="o-email-address">IMAP 服务器（含端口）</label>
+          <input id="o-email-address" type="text" autocomplete="off" spellcheck="false"
+                 data-field="email.address" placeholder="imap.example.com:993" />
         </div>
+        <div data-gmail-guide></div>
         <div class="field">
           <label for="o-email-username">登录账号</label>
           <input id="o-email-username" type="text" autocomplete="off" spellcheck="false"
@@ -250,7 +281,7 @@
         <h2>AI 整理（可选）</h2>
         <p class="lead">开启后，长邮件会被压成几行字再打印。不填也能用。</p>
         <div class="field">
-          <label for="o-ai-url">接口地址</label>
+          <label for="o-ai-url">接口地址（HTTP / HTTPS）</label>
           <input id="o-ai-url" type="text" autocomplete="off" spellcheck="false"
                  data-field="ai.url" placeholder="https://api.example.com/v1/chat/completions" />
         </div>
@@ -297,6 +328,21 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<template id="gmail-guide">
+  <details class="mail-guide">
+    <summary>Gmail 配置指南</summary>
+    <ol>
+      <li>在 Google 帐号启用两步验证，然后创建一个应用专用密码。</li>
+      <li>使用下方按钮填入服务器。登录账号填完整的 Gmail 地址，授权码填刚生成的应用专用密码。</li>
+      <li>收取文件夹通常填 <code>INBOX</code>。点击「测试连接」验证配置。</li>
+    </ol>
+    <p>部分 Google Workspace 帐号或受保护帐号可能无法创建应用专用密码。</p>
+    <div class="row-actions">
+      <button type="button" class="btn btn-quiet btn-sm" data-gmail-server>填入 Gmail 服务器</button>
+      <button type="button" class="btn btn-quiet btn-sm" data-gmail-help>打开 Google 官方指引</button>
+    </div>
+  </details>
+</template>
 <script src="app.js"></script>
 </body>
 </html>

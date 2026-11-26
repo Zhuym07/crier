@@ -59,19 +59,8 @@ button { font: inherit; color: inherit; }
 
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 6px; }
 
-.mark {
-  display: grid;
-  place-items: center;
-  width: 30px; height: 30px;
-  border-radius: 8px;
-  background: var(--seal);
-  color: #fff;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 1px 3px rgba(154, 58, 37, .35);
-}
-.mark.lg { width: 40px; height: 40px; border-radius: 11px; font-size: 22px; }
+.brand-logo { display: block; width: 30px; height: 30px; flex: 0 0 auto; }
+.brand-logo-lg { width: 40px; height: 40px; }
 
 .brand-text { display: flex; flex-direction: column; line-height: 1.25; }
 .brand-text strong { font-size: 15px; letter-spacing: .04em; }
@@ -292,6 +281,11 @@ button { font: inherit; color: inherit; }
 .field-inline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .field-inline > label { margin-bottom: 0; }
 
+.mail-guide { margin-top: 8px; color: var(--ink-2); font-size: 13px; }
+.mail-guide summary { cursor: pointer; color: var(--seal); }
+.mail-guide ol { margin: 8px 0; padding-left: 21px; }
+.mail-guide li + li { margin-top: 4px; }
+
 input[type="text"], input[type="email"], input[type="password"], select {
   width: 100%;
   padding: 8px 11px;
@@ -382,7 +376,8 @@ select {
 }
 .oobe[hidden] { display: none; }
 
-.oobe-inner { display: flex; flex-direction: column; width: 100%; max-width: 620px; }
+.oobe-inner { display: flex; flex-direction: column; width: 100%; max-width: 620px; max-height: 100%; }
+.oobe-inner > :not(.oobe-card) { flex-shrink: 0; }
 
 .oobe-brand { display: flex; align-items: center; gap: 13px; margin-bottom: 22px; }
 .oobe-brand div { display: flex; flex-direction: column; line-height: 1.35; }
@@ -417,7 +412,8 @@ select {
   border-radius: 18px;
   padding: 26px 28px 22px;
   box-shadow: 0 2px 4px rgba(27, 26, 24, .04), 0 24px 48px -28px rgba(27, 26, 24, .45);
-  min-height: 356px;
+  min-height: min(356px, 50vh);
+  overflow-y: auto;
 }
 
 .pane { display: none; }

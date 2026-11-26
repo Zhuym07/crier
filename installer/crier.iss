@@ -1,7 +1,8 @@
 [Setup]
 AppId=Crier
 AppName=Crier
-AppVersion=0.1.1
+AppVersion=0.1.2
+SetupIconFile=..\brand.ico
 AppPublisher=Crier
 DefaultDirName={localappdata}\Programs\Crier
 DefaultGroupName=Crier
@@ -19,6 +20,7 @@ RestartApplications=no
 [Files]
 Source: "..\build\Crier.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build\crier-email.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build\crier-telegram.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Crier"; Filename: "{app}\Crier.exe"

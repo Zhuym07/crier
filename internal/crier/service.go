@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -162,10 +163,52 @@ func (p plugin) call(ctx context.Context, method, cursor string, out any) error 
 	return nil
 }
 
+func telegramPlugin(c TelegramConfig) (plugin, error) {
+	if strings.TrimSpace(c.Token) == "" {
+		return plugin{}, errors.New("请填写 Telegram Bot Token")
+	}
+	var ids []int64
+	for _, part := range strings.Fields(strings.ReplaceAll(c.AdminIDs, ",", " ")) {
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil || id <= 0 {
+			return plugin{}, errors.New("Telegram 管理员 ID 必须是正整数")
+		}
+		ids = append(ids, id)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return plugin{}, err
+	}
+	settings := map[string]any{"token": c.Token, "proxy_url": c.ProxyURL, "whitelist_user_ids": ids, "max_points": 2000, "recharge_per_sec": 100.0 / 60, "batch_timeout_seconds": 2}
+	for key, value := range map[string]string{"log_channel_id": c.LogChannel, "todo_channel_id": c.TodoChannel} {
+		if value == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || id == 0 {
+			return plugin{}, errors.New("Telegram 频道 ID 必须是非零整数")
+		}
+		settings[key] = id
+	}
+	payload, err := json.Marshal(settings)
+	botID, secret, ok := strings.Cut(c.Token, ":")
+	if _, err := strconv.ParseUint(botID, 10, 64); !ok || err != nil || secret == "" {
+		return plugin{}, errors.New("Telegram Bot Token 格式无效")
+	}
+	return plugin{ID: "telegram", Executable: filepath.Join(filepath.Dir(exe), "crier-telegram.exe"), Settings: payload, AllowAI: true, cursorKey: "telegram:" + botID}, err
+}
+
 func (s *Service) plugins(c Config) ([]plugin, error) {
 	var sources []plugin
 	if c.Email.Enabled {
 		p, err := emailPlugin(c.Email)
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, p)
+	}
+	if c.Telegram.Enabled {
+		p, err := telegramPlugin(c.Telegram)
 		if err != nil {
 			return nil, err
 		}
@@ -179,7 +222,7 @@ func (s *Service) plugins(c Config) ([]plugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	ids := map[string]bool{"email": true}
+	ids := map[string]bool{"email": true, "telegram": true}
 	for _, p := range extra {
 		if p.ID == "" || ids[p.ID] || !filepath.IsAbs(p.Executable) {
 			return nil, errors.New("插件 ID 必须唯一，程序路径必须为绝对路径")
@@ -307,6 +350,12 @@ func (s *Service) poll(ctx context.Context, p plugin, ai AIConfig) error {
 func prepare(ctx context.Context, e event, ai AIConfig, allowAI bool) (ticket.Layout, error) {
 	if e.Layout != nil {
 		return *e.Layout, nil
+	}
+	if e.Template == "mail" {
+		return mailLayout(ctx, e, ai, ai.Enabled && allowAI && e.AI == "classify_summarize")
+	}
+	if e.Template == "todo" {
+		return todoLayout(ctx, e, ai, ai.Enabled && allowAI && e.AI == "todo")
 	}
 	if e.Template != "reminder" {
 		return ticket.Layout{}, errors.New("未知票据模板")

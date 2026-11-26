@@ -12,11 +12,12 @@ import (
 )
 
 type Config struct {
-	Printer   string      `json:"printer"`
-	Email     EmailConfig `json:"email"`
-	AI        AIConfig    `json:"ai"`
-	SetupDone bool        `json:"setupDone"`
-	AutoStart bool        `json:"autoStart"`
+	Printer   string         `json:"printer"`
+	Email     EmailConfig    `json:"email"`
+	AI        AIConfig       `json:"ai"`
+	Telegram  TelegramConfig `json:"telegram"`
+	SetupDone bool           `json:"setupDone"`
+	AutoStart bool           `json:"autoStart"`
 }
 
 type EmailConfig struct {
@@ -25,6 +26,15 @@ type EmailConfig struct {
 	Password string `json:"secret"`
 	Mailbox  string `json:"mailbox"`
 	Enabled  bool   `json:"enabled"`
+}
+
+type TelegramConfig struct {
+	Enabled     bool   `json:"enabled"`
+	Token       string `json:"token"`
+	ProxyURL    string `json:"proxy_url"`
+	AdminIDs    string `json:"adminIDs"`
+	LogChannel  string `json:"logChannel"`
+	TodoChannel string `json:"todoChannel"`
 }
 
 type AIConfig struct {
@@ -73,7 +83,7 @@ func Open() (*Service, error) {
 	if err := readJSON(filepath.Join(dir, "settings.json"), &s.config); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read settings: %w", err)
 	}
-	for _, secret := range []*string{&s.config.AI.Key, &s.config.Email.Password} {
+	for _, secret := range []*string{&s.config.AI.Key, &s.config.Email.Password, &s.config.Telegram.Token, &s.config.Telegram.ProxyURL} {
 		if err := decrypt(secret); err != nil {
 			return nil, fmt.Errorf("read credentials: %w", err)
 		}
@@ -105,13 +115,18 @@ func (s *Service) Save(c Config) error {
 	if c.Email.Enabled && (c.Email.Address == "" || c.Email.Username == "" || c.Email.Password == "") {
 		return errors.New("请填写 IMAP 地址、账号和密码")
 	}
+	if c.Telegram.Enabled {
+		if _, err := telegramPlugin(c.Telegram); err != nil {
+			return err
+		}
+	}
 	if c.AI.Enabled {
 		if err := validateAI(c.AI); err != nil {
 			return err
 		}
 	}
 	disk := c
-	for _, secret := range []*string{&disk.AI.Key, &disk.Email.Password} {
+	for _, secret := range []*string{&disk.AI.Key, &disk.Email.Password, &disk.Telegram.Token, &disk.Telegram.ProxyURL} {
 		if err := encrypt(secret); err != nil {
 			return err
 		}

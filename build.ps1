@@ -10,6 +10,8 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Desktop build failed' }
   & $Go build -trimpath -ldflags '-s -w' -o build/crier-email.exe ./cmd/crier-email
   if ($LASTEXITCODE -ne 0) { throw 'Email plugin build failed' }
+  & $Go build -trimpath -ldflags '-s -w' -o build/crier-telegram.exe ./cmd/crier-telegram
+  if ($LASTEXITCODE -ne 0) { throw 'Telegram plugin build failed' }
   & $ISCC installer/crier.iss
   if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
 } finally { Pop-Location }
