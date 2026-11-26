@@ -319,9 +319,9 @@ async function testPrint(button) {
 async function preview(button) {
   await withBusy(button, async () => {
     const url = await api.PreviewDataURL();
-    const box = button.dataset.previewBox;
-    $(`#${box}-img`).src = url;
-    $(`#${box}`).hidden = false;
+    const box = $(`#${button.dataset.previewBox}`);
+    $('img', box).src = url;
+    box.hidden = false;
   });
 }
 
