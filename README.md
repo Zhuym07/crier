@@ -8,7 +8,7 @@ Crier 把邮件和其他信息源里的重要提醒打印成热敏小票。Windo
 
 IMAP 填写带端口的地址，例如 `imap.example.com:993`。首次检查记录当前邮箱进度，从此之后的新邮件开始打印。仅在开启 AI 后，邮件标题和用于摘要的正文才会发送给所配置的 AI 接口。设置中的邮件密码和 API Key 由 Windows DPAPI 保护。
 
-AI 接口支持 HTTP 和 HTTPS。无需认证的本地服务可留空 API Key。HTTP 会明文传输请求内容和密钥，适合本机或可信网络。邮件 AI 支持日程、截止、提交回执、公告、验证码、待办、账单、推广和通用摘要。AI 请求失败时会打印原文摘录。
+AI 的 Base URL 填到 `/v1` 即可（例如 `https://integrate.api.nvidia.com/v1`），传令会自动补上 `/chat/completions`；已经带该后缀的完整地址也照常可用。支持 HTTP 和 HTTPS。无需认证的本地服务可留空 API Key。HTTP 会明文传输请求内容和密钥，适合本机或可信网络。邮件 AI 支持日程、截止、提交回执、公告、验证码、待办、账单、推广和通用摘要。AI 请求失败时会打印原文摘录。
 
 在侧边栏的「插件」页启用「Telegram 打印」并填入 Bot Token。可选填代理、管理员用户 ID、日志频道和待办频道。普通消息支持文本、图片、静态贴纸和 `[qr:内容]`。命令包括 `/print`、`/qrcode`、`/usage`、`/todo` 和 `/test_printer`。其中 `/todo` 和 `/test_printer` 需要管理员 ID，`/todo` 在开启中央 AI 设置后会拆解任务。使用旧机器人前请先停掉原来的轮询进程。Telegram Bot Token 和代理地址由 Windows DPAPI 保护。
 

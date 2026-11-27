@@ -85,7 +85,7 @@ func Open() (*Service, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	s := &Service{dir: dir, config: Config{Email: EmailConfig{Mailbox: "INBOX"}, AI: AIConfig{URL: "https://api.deepseek.com/chat/completions", Model: "deepseek-chat"}}, queue: queue{Cursors: make(map[string]string)}}
+	s := &Service{dir: dir, config: Config{Email: EmailConfig{Mailbox: "INBOX"}, AI: AIConfig{URL: "https://api.deepseek.com/v1", Model: "deepseek-chat"}}, queue: queue{Cursors: make(map[string]string)}}
 	if err := readJSON(filepath.Join(dir, "settings.json"), &s.config); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read settings: %w", err)
 	}

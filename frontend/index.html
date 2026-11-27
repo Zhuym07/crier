@@ -237,9 +237,10 @@
                     data-field="ai.enabled" data-kind="bool" aria-label="启用 AI 整理"><span></span></button>
           </div>
           <div class="field">
-            <label for="s-ai-url">接口地址（HTTP / HTTPS）</label>
+            <label for="s-ai-url">Base URL</label>
             <input id="s-ai-url" type="text" autocomplete="off" spellcheck="false"
-                   data-field="ai.url" placeholder="https://api.example.com/v1/chat/completions" />
+                   data-field="ai.url" placeholder="https://integrate.api.nvidia.com/v1" />
+            <p class="hint">填到 /v1 即可，传令会自动补上 /chat/completions。</p>
           </div>
           <div class="field">
             <label for="s-ai-key">密钥</label>
@@ -365,9 +366,10 @@
         <h2>AI 整理（可选）</h2>
         <p class="lead">开启后，长邮件会被压成几行字再打印。不填也能用。</p>
         <div class="field">
-          <label for="o-ai-url">接口地址（HTTP / HTTPS）</label>
+          <label for="o-ai-url">Base URL</label>
           <input id="o-ai-url" type="text" autocomplete="off" spellcheck="false"
-                 data-field="ai.url" placeholder="https://api.example.com/v1/chat/completions" />
+                 data-field="ai.url" placeholder="https://integrate.api.nvidia.com/v1" />
+          <p class="hint">填到 /v1 即可，传令会自动补上 /chat/completions。</p>
         </div>
         <div class="field">
           <label for="o-ai-key">密钥</label>
