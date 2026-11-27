@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"sync/atomic"
 
 	"github.com/Zhuym07/crier/internal/crier"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -16,7 +17,7 @@ type App struct {
 	ctx       context.Context
 	autostart bool
 	tray      *tray
-	quitting  bool
+	quitting  atomic.Bool
 }
 
 func newApp(svc *crier.Service, autostart bool) *App {
@@ -38,14 +39,14 @@ func (a *App) startup(ctx context.Context) {
 
 // domReady 把开机自启的窗口收进托盘，用户需要时点托盘图标再打开。
 func (a *App) domReady(ctx context.Context) {
-	if a.autostart {
+	if a.autostart && a.tray.ready() {
 		runtime.WindowHide(ctx)
 	}
 }
 
 // beforeClose 拦下窗口关闭：没有托盘时直接退出，有托盘时收进托盘。
 func (a *App) beforeClose(ctx context.Context) bool {
-	if a.quitting || a.tray == nil || !a.tray.ready() {
+	if a.quitting.Load() || a.tray == nil || !a.tray.ready() {
 		return false
 	}
 	runtime.WindowHide(ctx)
@@ -75,7 +76,7 @@ func (a *App) hideWindow() {
 }
 
 func (a *App) quit() {
-	a.quitting = true
+	a.quitting.Store(true)
 	if a.ctx != nil {
 		runtime.Quit(a.ctx)
 	}
@@ -170,9 +171,7 @@ func (a *App) InstallUpdate(path string) error {
 	if err := a.svc.LaunchInstaller(path); err != nil {
 		return err
 	}
-	if a.ctx != nil {
-		runtime.Quit(a.ctx)
-	}
+	a.quit()
 	return nil
 }
 
