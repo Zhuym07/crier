@@ -286,7 +286,7 @@ button { font: inherit; color: inherit; }
 .mail-guide ol { margin: 8px 0; padding-left: 21px; }
 .mail-guide li + li { margin-top: 4px; }
 
-input[type="text"], input[type="email"], input[type="password"], select {
+input[type="text"], input[type="email"], input[type="password"], select, textarea {
   width: 100%;
   padding: 8px 11px;
   border: 1px solid var(--line-strong);
@@ -298,14 +298,22 @@ input[type="text"], input[type="email"], input[type="password"], select {
   transition: border-color .15s, box-shadow .15s, background .15s;
 }
 input::placeholder { color: #b9b3aa; }
-input:hover, select:hover { border-color: var(--ink-3); }
-input:focus, select:focus {
+input:hover, select:hover, textarea:hover { border-color: var(--ink-3); }
+input:focus, select:focus, textarea:focus {
   outline: none;
   background: var(--surface);
   border-color: var(--seal);
   box-shadow: 0 0 0 3px rgba(180, 71, 47, .12);
 }
 input[type="password"] { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .06em; }
+input[readonly] { color: var(--ink-3); background: #f2efe9; }
+textarea {
+  min-height: 74px;
+  resize: vertical;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
 select {
   appearance: none;
   padding-right: 30px;
@@ -358,6 +366,64 @@ select {
   background: #fff;
   border-radius: 4px;
   box-shadow: 0 6px 18px -8px rgba(27, 26, 24, .5);
+}
+
+/* ---------- 插件页 ---------- */
+
+.plugins-ext { margin-top: 24px; }
+.plugins-ext .stack-head { align-items: flex-start; }
+.stack-head .row-actions { margin-top: 0; }
+.stack-head .hint { margin-top: 2px; max-width: 46em; white-space: normal; }
+
+.plugin-list { display: flex; flex-direction: column; gap: 8px; }
+
+.plugin {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.plugin-main { flex: 1 1 auto; min-width: 0; }
+.plugin-title { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.plugin-id { font-size: 13.5px; font-weight: 600; letter-spacing: .01em; }
+.plugin-path {
+  margin-top: 3px;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plugin-meta { margin-top: 2px; font-size: 11.5px; color: var(--ink-3); display: flex; gap: 6px; flex-wrap: wrap; }
+.plugin-actions { display: flex; gap: 6px; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+
+.plugin-editor { margin-top: 14px; }
+
+.checks { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.check { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+.check input { margin: 3px 0 0; flex: 0 0 auto; accent-color: var(--seal); }
+
+.hint-warn { margin-top: 12px; color: var(--warn); }
+
+.release-note {
+  margin-top: 14px;
+  padding: 11px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--ink-3);
+}
+.release-note code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  word-break: break-all;
 }
 
 /* ---------- OOBE ---------- */

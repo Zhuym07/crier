@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Zhuym07/crier/internal/crier"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -61,3 +62,44 @@ func (a *App) CheckNow() error { return a.svc.CheckNow() }
 func (a *App) History() []crier.Entry { return a.svc.History() }
 
 func (a *App) Acknowledge(id string) error { return a.svc.Acknowledge(id) }
+
+// ListPlugins 返回插件页要展示的插件：内置的邮箱与 Telegram 通道，
+// 加上用户在 plugins.json 里登记的外部程序。
+func (a *App) ListPlugins() ([]crier.PluginInfo, error) { return a.svc.ListPlugins() }
+
+// SavePlugin 登记或更新一个外部插件。程序路径必须来自文件选择器，
+// 后端只校验它确实是本机存在的 .exe，不做任何远程下载。
+func (a *App) SavePlugin(spec crier.PluginSpec) (crier.PluginInfo, error) {
+	return a.svc.SavePlugin(spec)
+}
+
+func (a *App) SetPluginEnabled(id string, enabled bool) error {
+	return a.svc.SetPluginEnabled(id, enabled)
+}
+
+func (a *App) RemovePlugin(id string) error { return a.svc.RemovePlugin(id) }
+
+// PickPluginExecutable 让用户亲手选择一个本地插件程序。
+// 取消时返回空字符串，不算错误。
+func (a *App) PickPluginExecutable() (string, error) {
+	if a.ctx == nil {
+		return "", errors.New("窗口尚未就绪")
+	}
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "选择插件程序",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Crier 插件 (*.exe)", Pattern: "*.exe"},
+		},
+	})
+}
+
+// PluginReleaseURL 是官方下载页地址，界面只展示它，打开动作走系统浏览器。
+func (a *App) PluginReleaseURL() string { return crier.OfficialPluginReleaseURL }
+
+func (a *App) OpenPluginReleasePage() error {
+	if a.ctx == nil {
+		return errors.New("窗口尚未就绪")
+	}
+	runtime.BrowserOpenURL(a.ctx, crier.OfficialPluginReleaseURL)
+	return nil
+}

@@ -48,6 +48,7 @@ type Event struct {
 	ID        string         `json:"id"`
 	GroupKey  string         `json:"-"`
 	MediaCost int            `json:"-"`
+	ChatID    int64          `json:"chat_id,omitempty"`
 	Title     string         `json:"title"`
 	Body      string         `json:"body,omitempty"`
 	Template  string         `json:"template,omitempty"`
@@ -112,15 +113,40 @@ func Poll(ctx context.Context, cfg Config, cursor string) (Result, error) {
 	if st.Wallets == nil {
 		st.Wallets = map[string]wallet{}
 	}
+	c, err := newClient(cfg)
+	if err != nil {
+		return Result{}, err
+	}
+	defer c.http.CloseIdleConnections()
+	return c.poll(ctx, st)
+}
+
+func newClient(cfg Config) (client, error) {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	if cfg.ProxyURL != "" {
 		u, e := url.Parse(cfg.ProxyURL)
 		if e != nil || u.Scheme == "" || u.Host == "" {
-			return Result{}, errors.New("invalid proxy_url")
+			return client{}, errors.New("invalid proxy_url")
 		}
 		tr.Proxy = http.ProxyURL(u)
 	}
-	c := client{cfg: cfg, http: &http.Client{Timeout: 50 * time.Second, Transport: tr}, base: apiBase}
+	return client{cfg: cfg, http: &http.Client{Timeout: 50 * time.Second, Transport: tr}, base: apiBase}, nil
+}
+
+func Notify(ctx context.Context, cfg Config, chatID int64, text string) error {
+	if cfg.Token == "" || chatID == 0 || strings.TrimSpace(text) == "" {
+		return errors.New("invalid Telegram notification")
+	}
+	c, err := newClient(cfg)
+	if err != nil {
+		return err
+	}
+	defer c.http.CloseIdleConnections()
+	return c.call(ctx, "sendMessage", map[string]any{"chat_id": chatID, "text": text}, nil)
+}
+
+func (c client) poll(ctx context.Context, st cursorState) (Result, error) {
+	cfg := c.cfg
 	updates, err := c.updates(ctx, st.Offset, 2)
 	if err != nil {
 		return Result{}, err
@@ -171,7 +197,7 @@ func Poll(ctx context.Context, cfg Config, cursor string) (Result, error) {
 					continue
 				}
 				l := ticket.Layout{Blocks: []ticket.Block{{Type: "header", Title: "TELE FAX", Subtitle: user(m)}, {Type: "qr", Data: arg}}}
-				events = append(events, Event{ID: msgID(m), GroupKey: groupKey(m), Title: "QR | " + arg, Layout: &l})
+				events = append(events, Event{ID: msgID(m), GroupKey: groupKey(m), ChatID: m.Chat.ID, Title: "QR | " + arg, Layout: &l})
 				c.logMessage(ctx, m, "Cmd: QR | "+user(m))
 				continue
 			case "/todo":
@@ -183,10 +209,7 @@ func Poll(ctx context.Context, cfg Config, cursor string) (Result, error) {
 					c.send(ctx, m.Chat.ID, "❌ 您不是白名单用户，无法使用此功能。")
 					continue
 				}
-				events = append(events, Event{ID: msgID(m), GroupKey: groupKey(m), Title: arg, Body: arg, Template: "todo", AI: "todo"})
-				if cfg.TodoChannelID != 0 {
-					c.send(ctx, cfg.TodoChannelID, "✅ 新任务："+arg)
-				}
+				events = append(events, Event{ID: msgID(m), GroupKey: groupKey(m), ChatID: m.Chat.ID, Title: arg, Body: arg, Template: "todo", AI: "todo"})
 				continue
 			case "/test_printer":
 				if !vip(cfg, m.From.ID) {
@@ -194,7 +217,7 @@ func Poll(ctx context.Context, cfg Config, cursor string) (Result, error) {
 					continue
 				}
 				l := ticket.Layout{Blocks: []ticket.Block{{Type: "header", Title: "TELE FAX", Subtitle: "TEST"}, {Type: "text", Text: "打印机测试\n系统运行正常", Align: "center"}}}
-				events = append(events, Event{ID: msgID(m), GroupKey: groupKey(m), Title: "Telegram 打印测试", Layout: &l})
+				events = append(events, Event{ID: msgID(m), GroupKey: groupKey(m), ChatID: m.Chat.ID, Title: "Telegram 打印测试", Layout: &l})
 				continue
 			case "/print":
 				m.Text = arg
@@ -455,18 +478,19 @@ func (c client) message(ctx context.Context, m *message) ([]Event, error) {
 	if title == "" {
 		title = "Telegram media"
 	}
-	return []Event{{ID: msgID(m), GroupKey: groupKey(m), Title: title, MediaCost: mediaCost, Layout: &ticket.Layout{Blocks: blocks}}}, nil
+	return []Event{{ID: msgID(m), GroupKey: groupKey(m), ChatID: m.Chat.ID, Title: title, MediaCost: mediaCost, Layout: &ticket.Layout{Blocks: blocks}}}, nil
 }
 func groupMessages(events []Event) []Event {
 	var out []Event
 	var blocks []ticket.Block
 	var ids []string
 	var key, title string
+	var chatID int64
 	flush := func() {
 		if len(blocks) == 0 {
 			return
 		}
-		out = append(out, Event{ID: strings.Join(ids, ","), Title: title, Layout: &ticket.Layout{Blocks: blocks}})
+		out = append(out, Event{ID: strings.Join(ids, ","), ChatID: chatID, Title: title, Layout: &ticket.Layout{Blocks: blocks}})
 		blocks = nil
 		ids = nil
 		key = ""
@@ -490,11 +514,13 @@ func groupMessages(events []Event) []Event {
 		if len(blocks) == 0 {
 			key = k
 			title = e.Title
+			chatID = e.ChatID
 		}
 		if len(ids) > 0 && (len(ids) >= 4 || blockBytes(blocks)+blockBytes(e.Layout.Blocks) > 3000) {
 			flush()
 			key = k
 			title = e.Title
+			chatID = e.ChatID
 		}
 		blocks = append(blocks, e.Layout.Blocks...)
 		ids = append(ids, e.ID)

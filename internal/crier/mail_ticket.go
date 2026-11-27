@@ -48,10 +48,11 @@ func mailLayout(ctx context.Context, e event, ai AIConfig, useAI bool) (ticket.L
 			summary.Summary = "AI 分析失败\n" + summary.Summary
 		}
 	}
-	blocks := []ticket.Block{{Type: "header", Title: mailLabels[summary.Type], Subtitle: limitText(sender, 100)}}
+	header := ticket.Block{Type: "header", Title: mailLabels[summary.Type], Subtitle: limitText(sender, 100), Icon: summary.Type}
 	if !e.Time.IsZero() {
-		blocks = append(blocks, ticket.Block{Type: "text", Style: "dim", Text: e.Time.Local().Format("2006-01-02 15:04")})
+		header.Meta = e.Time.Local().Format("01-02 15:04")
 	}
+	blocks := []ticket.Block{header}
 	blocks = append(blocks, ticket.Block{Type: "text", Style: "bold", Text: limitText(e.Title, 180)})
 	add := func(label, value, style string) {
 		if strings.TrimSpace(value) != "" {
@@ -78,7 +79,9 @@ func mailLayout(ctx context.Context, e event, ai AIConfig, useAI bool) (ticket.L
 			items = summary.TodoItems
 		}
 		for _, item := range items[:min(len(items), 8)] {
-			add("•", item, "normal")
+			if strings.TrimSpace(item) != "" {
+				blocks = append(blocks, ticket.Block{Type: "text", Text: "• " + limitText(item, 140)})
+			}
 		}
 	}
 	if (summary.Type != "code" || strings.TrimSpace(summary.Code) == "") && strings.TrimSpace(summary.Summary) != "" {

@@ -4,10 +4,11 @@ const api = window.go.main.App;
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-// 后端 History 的四种状态。
+// 后端 History 的状态。
 const STATES = {
   pending: { label: '待确认', tone: 'warn' },
   submitted: { label: '已提交', tone: 'ok' },
+  printed: { label: '驱动报告已打印', tone: 'ok' },
   uncertain: { label: '结果未知', tone: 'bad' },
   acknowledged: { label: '已确认', tone: 'muted' },
 };
@@ -17,15 +18,20 @@ const LAST_STEP = 4;
 let cfg = emptyConfig();
 let printers = [];
 let entries = [];
+let plugins = [];
+let pluginEditor = null; // null，或 { id, executable }：编辑面板当前对应的插件
 let step = 0;
 let pollTimer = 0;
 let toastTimer = 0;
+
+const PLUGINS_EMPTY = '还没有外部插件。安装包自带的邮箱与 Telegram 通道已在上方。';
 
 function emptyConfig() {
   return {
     printer: '',
     email: { address: '', username: '', secret: '', mailbox: '', enabled: false },
     ai: { url: '', key: '', model: '', enabled: false },
+    telegram: { enabled: false, token: '', proxy_url: '', adminIDs: '', logChannel: '', todoChannel: '' },
     setupDone: false,
     autoStart: false,
   };
@@ -77,6 +83,7 @@ function readForm(root, base) {
 
 function syncForms() {
   fillForm($('#settings-form'), cfg);
+  fillForm($('#plugins-form'), cfg);
   fillForm($('#oobe'), cfg);
   renderPrinterSelects();
 }
@@ -87,6 +94,7 @@ function showView(name) {
   for (const item of $$('.nav-item')) item.classList.toggle('is-active', item.dataset.view === name);
   for (const view of $$('.view')) view.classList.toggle('is-active', view.id === `view-${name}`);
   if (name === 'dashboard') loadHistory();
+  if (name === 'plugins') loadPlugins();
 }
 
 /* ---------- 打印机列表 ---------- */
@@ -182,8 +190,8 @@ function renderEntries() {
     badge.textContent = state.label;
     row.append(badge);
 
-    // 只有已提交或结果未知的凭条才谈得上"确认"；待确认的还没打印。
-    if (entry.state === 'submitted' || entry.state === 'uncertain') {
+    // 已提交、驱动回执已打印或结果未知的凭条都需要人来确认。
+    if (entry.state === 'submitted' || entry.state === 'printed' || entry.state === 'uncertain') {
       const ack = document.createElement('button');
       ack.type = 'button';
       ack.className = 'btn btn-quiet btn-sm';
@@ -289,13 +297,16 @@ async function loadHistory(loud = true) {
   renderEntries();
 }
 
-function currentRoot() {
-  return $('#oobe').hidden ? $('#settings-form') : $('#oobe');
+// 设置页与插件页各承担一部分字段，保存/测试时合并读取，避免互相覆盖。
+function configDraft() {
+  if (!$('#oobe').hidden) return readForm($('#oobe'), cfg);
+  const draft = readForm($('#settings-form'), cfg);
+  return readForm($('#plugins-form'), draft);
 }
 
 async function saveConfig(button, extra) {
   await withBusy(button, async () => {
-    const draft = Object.assign(readForm(currentRoot(), cfg), extra || {});
+    const draft = Object.assign(configDraft(), extra || {});
     await api.SaveConfig(draft);
     cfg = await api.GetConfig();
     syncForms();
@@ -305,7 +316,7 @@ async function saveConfig(button, extra) {
 }
 
 async function testPrint(button) {
-  const draft = readForm(currentRoot(), cfg);
+  const draft = configDraft();
   if (!draft.printer) {
     toast('先选一台打印机', true);
     return;
@@ -326,7 +337,7 @@ async function preview(button) {
 }
 
 async function testEmail(button) {
-  const draft = readForm(currentRoot(), cfg);
+  const draft = configDraft();
   await withBusy(button, async () => {
     await api.TestEmail(draft.email);
     toast('邮箱连接正常');
@@ -334,7 +345,7 @@ async function testEmail(button) {
 }
 
 async function testAI(button) {
-  const draft = readForm(currentRoot(), cfg);
+  const draft = configDraft();
   await withBusy(button, async () => {
     await api.TestAI(draft.ai);
     toast('AI 接口正常');
@@ -365,6 +376,248 @@ async function oobeNext() {
 async function rerunSetup(button) {
   await saveConfig(button, { setupDone: false });
   if (!cfg.setupDone) openOobe();
+}
+
+/* ---------- 外部插件 ---------- */
+
+function externalPlugins() {
+  return plugins.filter((item) => !item.builtin);
+}
+
+async function loadPlugins() {
+  try {
+    plugins = (await api.ListPlugins()) || [];
+    renderPlugins();
+  } catch (err) {
+    plugins = [];
+    renderPlugins();
+    $('#plugins-chip').textContent = '插件读取失败';
+    $('#plugins-empty').hidden = false;
+    $('#plugins-empty').textContent = errText(err);
+  }
+}
+
+function renderPlugins() {
+  const list = $('#plugin-list');
+  const external = externalPlugins();
+  list.replaceChildren();
+  $('#plugins-empty').hidden = external.length > 0;
+  $('#plugins-empty').textContent = PLUGINS_EMPTY;
+  $('#plugins-chip').textContent = external.length ? `${external.length} 个外部插件` : '无外部插件';
+  for (const item of external) list.append(pluginRow(item));
+}
+
+function badge(text, tone) {
+  const el = document.createElement('span');
+  el.className = `badge tone-${tone}`;
+  el.textContent = text;
+  return el;
+}
+
+function pluginRow(item) {
+  const row = document.createElement('li');
+  row.className = 'plugin';
+
+  const main = document.createElement('div');
+  main.className = 'plugin-main';
+
+  const title = document.createElement('div');
+  title.className = 'plugin-title';
+  const id = document.createElement('span');
+  id.className = 'plugin-id';
+  id.textContent = item.id;
+  title.append(id);
+  title.append(badge(item.enabled ? '已启用' : '已停用', item.enabled ? 'ok' : 'muted'));
+  if (item.allowAI) title.append(badge('AI', 'warn'));
+  if (item.allowRaw) title.append(badge('原始打印', 'bad'));
+  if (!item.exists) title.append(badge('文件缺失', 'bad'));
+
+  const path = document.createElement('div');
+  path.className = 'plugin-path';
+  path.textContent = item.executable || '';
+  path.title = item.executable || '';
+
+  const meta = document.createElement('div');
+  meta.className = 'plugin-meta';
+  const count = settingsCount(item.settings);
+  meta.append(document.createTextNode(count ? `设置 ${count} 项` : '无额外设置'));
+  meta.append(document.createTextNode('· 本地程序'));
+  main.append(title, path, meta);
+
+  const actions = document.createElement('div');
+  actions.className = 'plugin-actions';
+
+  const config = document.createElement('button');
+  config.type = 'button';
+  config.className = 'btn btn-quiet btn-sm';
+  config.textContent = '配置';
+  config.addEventListener('click', () => openPluginEditor(item));
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'btn btn-quiet btn-sm';
+  toggle.textContent = item.enabled ? '停用' : '启用';
+  toggle.addEventListener('click', (e) => togglePlugin(e.currentTarget, item, !item.enabled));
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'btn btn-quiet btn-sm';
+  remove.textContent = '移除';
+  remove.addEventListener('click', (e) => removePlugin(e.currentTarget, item));
+
+  actions.append(config, toggle, remove);
+  row.append(main, actions);
+  return row;
+}
+
+function settingsCount(settings) {
+  return settings && typeof settings === 'object' ? Object.keys(settings).length : 0;
+}
+
+function defaultPluginId(path) {
+  const base = String(path || '').split(/[\\/]/).pop().replace(/\.exe$/i, '');
+  const id = base.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[^a-z0-9]+/, '').replace(/[-.]+$/, '');
+  return (id.slice(0, 48).replace(/[-.]+$/, '') || 'plugin');
+}
+
+function prettySettings(settings) {
+  if (!settings || typeof settings !== 'object') return '{}';
+  try {
+    return JSON.stringify(settings, null, 2);
+  } catch {
+    return '{}';
+  }
+}
+
+function pluginIdTaken(id, exceptId) {
+  return externalPlugins().some((item) => item.id === id && item.id !== exceptId);
+}
+
+function renderEditorHint(existing) {
+  const hint = $('#plugin-editor-hint');
+  const id = $('#plugin-id').value.trim();
+  if (existing) {
+    hint.textContent = '可以修改设置与允许的能力；更换程序请点「选择程序」。保存后生效。';
+  } else if (pluginIdTaken(id)) {
+    hint.textContent = '已有同名插件，保存会替换它的程序路径、设置与允许项，并保留当前启用状态。';
+  } else {
+    hint.textContent = '导入后默认停用，确认程序无误后在列表里点「启用」才会开始收取。';
+  }
+}
+
+function openPluginEditor(item, executable) {
+  const existing = !!item;
+  pluginEditor = {
+    id: existing ? item.id : '',
+    executable: executable || (existing ? item.executable : ''),
+  };
+  $('#plugin-editor-title').textContent = existing ? `配置 ${item.id}` : '导入本地插件';
+  const idInput = $('#plugin-id');
+  idInput.disabled = existing;
+  idInput.value = existing ? item.id : defaultPluginId(pluginEditor.executable);
+  $('#plugin-exe').value = pluginEditor.executable;
+  $('#plugin-settings').value = prettySettings(existing ? item.settings : null);
+  $('#plugin-allow-ai').checked = !!(existing && item.allowAI);
+  $('#plugin-allow-raw').checked = !!(existing && item.allowRaw);
+  $('#plugin-editor').hidden = false;
+  renderEditorHint(existing);
+  idInput.focus();
+}
+
+function closePluginEditor() {
+  pluginEditor = null;
+  $('#plugin-editor').hidden = true;
+}
+
+async function pickPluginExecutable() {
+  try {
+    return (await api.PickPluginExecutable()) || '';
+  } catch (err) {
+    toast(errText(err), true);
+    return '';
+  }
+}
+
+async function importPlugin() {
+  const path = await pickPluginExecutable();
+  if (path) openPluginEditor(null, path);
+}
+
+async function repickPluginExecutable() {
+  const path = await pickPluginExecutable();
+  if (!path) return;
+  pluginEditor.executable = path;
+  $('#plugin-exe').value = path;
+  if (!pluginEditor.id) {
+    $('#plugin-id').value = defaultPluginId(path);
+    renderEditorHint(false);
+  }
+}
+
+async function savePluginDraft(button) {
+  const existing = !!(pluginEditor && pluginEditor.id);
+  const id = $('#plugin-id').value.trim();
+  const executable = $('#plugin-exe').value.trim();
+  if (!id) {
+    toast('请填写插件 ID', true);
+    return;
+  }
+  if (!executable) {
+    toast('请先选择插件程序', true);
+    return;
+  }
+  const replacing = !existing && pluginIdTaken(id);
+  let settings = {};
+  const raw = $('#plugin-settings').value.trim();
+  if (raw) {
+    try {
+      settings = JSON.parse(raw);
+    } catch {
+      toast('设置必须是合法的 JSON 对象', true);
+      return;
+    }
+    if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) {
+      toast('设置必须是 JSON 对象', true);
+      return;
+    }
+  }
+  await withBusy(button, async () => {
+    await api.SavePlugin({
+      id,
+      executable,
+      settings,
+      allowAI: $('#plugin-allow-ai').checked,
+      allowRaw: $('#plugin-allow-raw').checked,
+    });
+    closePluginEditor();
+    await loadPlugins();
+    toast(existing || replacing ? '插件已更新' : '已导入，默认停用。确认后点「启用」开始收取。');
+  });
+}
+
+async function togglePlugin(button, item, enabled) {
+  await withBusy(button, async () => {
+    await api.SetPluginEnabled(item.id, enabled);
+    await loadPlugins();
+    toast(enabled ? '插件已启用' : '插件已停用');
+  });
+}
+
+async function removePlugin(button, item) {
+  if (!window.confirm(`移除外部插件「${item.id}」？程序文件不会被删除。`)) return;
+  await withBusy(button, async () => {
+    await api.RemovePlugin(item.id);
+    if (pluginEditor && pluginEditor.id === item.id) closePluginEditor();
+    await loadPlugins();
+    toast('插件已移除');
+  });
+}
+
+async function openPluginReleasePage(button) {
+  await withBusy(button, async () => {
+    await api.OpenPluginReleasePage();
+    toast('已在浏览器中打开发布页');
+  });
 }
 
 /* ---------- toast ---------- */
@@ -419,6 +672,17 @@ function bindEvents() {
   $('#btn-save').addEventListener('click', (e) => saveConfig(e.currentTarget));
   $('#btn-rerun').addEventListener('click', (e) => rerunSetup(e.currentTarget));
 
+  $('#btn-plugin-save').addEventListener('click', (e) => saveConfig(e.currentTarget));
+  $('#btn-plugin-import').addEventListener('click', () => importPlugin());
+  $('#btn-plugin-release').addEventListener('click', (e) => openPluginReleasePage(e.currentTarget));
+  $('#plugin-exe-pick').addEventListener('click', () => repickPluginExecutable());
+  $('#plugin-editor-cancel').addEventListener('click', () => closePluginEditor());
+  $('#plugin-editor-save').addEventListener('click', (e) => savePluginDraft(e.currentTarget));
+  $('#plugin-id').addEventListener('input', () => renderEditorHint(!!(pluginEditor && pluginEditor.id)));
+
+  // 两个设置页共用 data-field 路径；回车不应触发表单导航。
+  for (const form of $$('form.settings')) form.addEventListener('submit', (e) => e.preventDefault());
+
   for (const id of ['#s-printers-refresh', '#o-printers-refresh']) {
     $(id).addEventListener('click', (e) =>
       withBusy(e.currentTarget, async () => {
@@ -469,6 +733,13 @@ async function init() {
   renderDashboard();
   bindEvents();
   await loadHistory();
+  await loadPlugins();
+  try {
+    const url = await api.PluginReleaseURL();
+    if (url) $('#plugin-release-url').textContent = url;
+  } catch {
+    // 地址只是展示信息，读不到就保留 HTML 里的默认地址。
+  }
   if (cfg.setupDone) {
     showView('dashboard');
   } else {

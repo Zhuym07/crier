@@ -18,7 +18,7 @@ import (
 )
 
 // spacing between logical lines, in dots
-const leadingDots = 3
+const leadingDots = 5
 
 // block padding and inset for boxes
 const (
@@ -151,8 +151,28 @@ func (r *renderer) kv(rows []Row, style string) error {
 	return nil
 }
 
+// Header typography, in dots. The values mirror the original Telefax header
+// bitmap: a 36 dot category icon, a 30 dot bold label, an 18 dot date at the
+// right edge, and a 22 dot bold sender line under a small sender glyph.
+const (
+	hdrIconInset   = 2
+	hdrIconTop     = 6
+	hdrIconSize    = 36
+	hdrTitleX      = 44
+	hdrTitlePX     = 30
+	hdrMetaPX      = 18
+	hdrSenderLeft  = 4
+	hdrSenderX     = 40
+	hdrSenderSize  = 26
+	hdrSenderPX    = 22
+	hdrSenderPitch = 30
+)
+
 func (r *renderer) header(b Block) error {
-	titleFace, err := Face(StyleBold)
+	if b.Icon != "" {
+		return r.iconHeader(b)
+	}
+	titleFace, err := faceAt(hdrTitlePX, true)
 	if err != nil {
 		return err
 	}
@@ -162,7 +182,7 @@ func (r *renderer) header(b Block) error {
 		}
 	}
 	if b.Subtitle != "" {
-		subFace, err := Face(StyleDim)
+		subFace, err := faceAt(hdrMetaPX, false)
 		if err != nil {
 			return err
 		}
@@ -170,7 +190,89 @@ func (r *renderer) header(b Block) error {
 			r.emitLine(line, subFace, AlignCenter)
 		}
 	}
-	r.spacer(4)
+	if b.Meta != "" {
+		metaFace, err := faceAt(hdrMetaPX, false)
+		if err != nil {
+			return err
+		}
+		r.emitLine(b.Meta, metaFace, AlignRight)
+	}
+	r.spacer(6)
+	return r.divider(false)
+}
+
+// iconHeader draws the category ticket head: glyph, large bold label, right
+// aligned timestamp and the sender line, all composed like one raster image as
+// the original printer did.
+func (r *renderer) iconHeader(b Block) error {
+	titleFace, err := faceAt(hdrTitlePX, true)
+	if err != nil {
+		return err
+	}
+	metaFace, err := faceAt(hdrMetaPX, false)
+	if err != nil {
+		return err
+	}
+	left := r.indent
+	top := r.y
+	r.c.pasteIcon(iconImage(b.Icon), left+hdrIconInset, top+hdrIconTop, hdrIconSize)
+
+	titleX := left + hdrTitleX
+	titleLines := wrapText(titleFace, b.Title, r.width-titleX-4)
+	tm := titleFace.Metrics()
+	titleBaseline := top + hdrIconTop + hdrIconSize/2 + (tm.Ascent-tm.Descent).Ceil()/2
+	for i, line := range titleLines {
+		r.drawBaseline(line, titleFace, titleX, titleBaseline+i*lineHeight(titleFace))
+	}
+
+	inlineMeta := false
+	if b.Meta != "" {
+		firstWidth := 0
+		if len(titleLines) != 0 {
+			firstWidth = font.MeasureString(titleFace, titleLines[0]).Ceil()
+		}
+		inlineMeta = titleX+firstWidth+12+font.MeasureString(metaFace, b.Meta).Ceil() <= r.width-4
+	}
+	metaLines := 0
+	if b.Meta != "" {
+		if inlineMeta {
+			width := font.MeasureString(metaFace, b.Meta).Ceil()
+			mm := metaFace.Metrics()
+			r.drawBaseline(b.Meta, metaFace, r.width-left-4-width,
+				top+hdrIconTop+hdrIconSize/2+(mm.Ascent-mm.Descent).Ceil()/2)
+		} else {
+			mm := metaFace.Metrics()
+			lines := wrapText(metaFace, b.Meta, r.availWidth()-8)
+			for i, line := range lines {
+				r.drawBaseline(line, metaFace, left+4, top+52+mm.Ascent.Ceil()+i*24)
+			}
+			metaLines = len(lines)
+		}
+	}
+
+	senderY := top + 54
+	if !inlineMeta && metaLines > 0 {
+		senderY = top + 56 + 24*metaLines
+	}
+	if titleBottom := titleBaseline + lineHeight(titleFace)*(len(titleLines)-1) + tm.Descent.Ceil() + 8; titleBottom > senderY {
+		senderY = titleBottom
+	}
+
+	height := hdrIconTop + hdrIconSize + 10
+	if b.Subtitle != "" {
+		senderFace, err := faceAt(hdrSenderPX, true)
+		if err != nil {
+			return err
+		}
+		r.c.pasteIcon(iconImage("sender"), left+hdrSenderLeft, senderY, hdrSenderSize)
+		sm := senderFace.Metrics()
+		lines := wrapText(senderFace, b.Subtitle, r.width-left-hdrSenderX-4)
+		for i, line := range lines {
+			r.drawBaseline(line, senderFace, left+hdrSenderX, senderY+2+sm.Ascent.Ceil()+i*hdrSenderPitch)
+		}
+		height = senderY - top + hdrSenderPitch*len(lines) + 8
+	}
+	r.y = top + height
 	return r.divider(false)
 }
 
@@ -339,8 +441,12 @@ func (r *renderer) emitLine(text string, face font.Face, align string) {
 
 // drawAt writes one line with its left edge at x, without moving the cursor.
 func (r *renderer) drawAt(text string, face font.Face, x int) {
-	m := face.Metrics()
-	baseline := r.y + m.Ascent.Ceil()
+	r.drawBaseline(text, face, x, r.y+face.Metrics().Ascent.Ceil())
+}
+
+// drawBaseline writes one line with an explicit baseline, without moving the
+// cursor. Header composition needs baselines decoupled from line stacking.
+func (r *renderer) drawBaseline(text string, face font.Face, x, baseline int) {
 	d := &font.Drawer{
 		Dst:  r.c.Image(),
 		Src:  inkStyle,

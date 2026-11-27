@@ -53,7 +53,13 @@ type Entry struct {
 
 type queueItem struct {
 	Entry
-	Data []byte `json:"data,omitempty"`
+	Data          []byte `json:"data,omitempty"`
+	SpoolID       uint32 `json:"spoolId,omitempty"`
+	Printer       string `json:"printer,omitempty"`
+	TelegramBot   string `json:"telegramBot,omitempty"`
+	TelegramChat  int64  `json:"telegramChat,omitempty"`
+	TodoText      string `json:"todoText,omitempty"`
+	NotifiedState string `json:"notifiedState,omitempty"`
 }
 
 type queue struct {

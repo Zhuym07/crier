@@ -27,6 +27,7 @@ type plugin struct {
 	Settings   json.RawMessage `json:"settings"`
 	AllowAI    bool            `json:"allowAI"`
 	AllowRaw   bool            `json:"allowRaw"`
+	Disabled   bool            `json:"disabled,omitempty"`
 	cursorKey  string
 }
 
@@ -40,6 +41,7 @@ type event struct {
 	Fields   map[string]string `json:"fields"`
 	Layout   *ticket.Layout    `json:"layout"`
 	Raw      []byte            `json:"raw"`
+	ChatID   int64             `json:"chat_id"`
 }
 
 type pollResult struct {
@@ -107,6 +109,10 @@ func (s *Service) TestEmail(c EmailConfig) error {
 }
 
 func (p plugin) call(ctx context.Context, method, cursor string, out any) error {
+	return p.callWith(ctx, method, cursor, out, nil)
+}
+
+func (p plugin) callWith(ctx context.Context, method, cursor string, out any, extra map[string]any) error {
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	params := map[string]json.RawMessage{}
@@ -119,6 +125,13 @@ func (p plugin) call(ctx context.Context, method, cursor string, out any) error 
 		return errors.New("plugin settings must be an object")
 	}
 	params["cursor"], _ = json.Marshal(cursor)
+	for key, value := range extra {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		params[key] = encoded
+	}
 	request, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
 	if err != nil {
 		return err
@@ -214,22 +227,16 @@ func (s *Service) plugins(c Config) ([]plugin, error) {
 		}
 		sources = append(sources, p)
 	}
-	var extra []plugin
-	err := readJSON(filepath.Join(s.dir, "plugins.json"), &extra)
-	if errors.Is(err, os.ErrNotExist) {
-		return sources, nil
-	}
+	extra, err := s.loadPluginRegistry()
 	if err != nil {
-		return nil, err
+		return sources, err
 	}
-	ids := map[string]bool{"email": true, "telegram": true}
 	for _, p := range extra {
-		if p.ID == "" || ids[p.ID] || !filepath.IsAbs(p.Executable) {
-			return nil, errors.New("插件 ID 必须唯一，程序路径必须为绝对路径")
+		if !p.Disabled {
+			sources = append(sources, p)
 		}
-		ids[p.ID] = true
 	}
-	return append(sources, extra...), nil
+	return sources, nil
 }
 
 func (s *Service) Start(ctx context.Context) {
@@ -266,7 +273,13 @@ func (s *Service) run(ctx context.Context) error {
 			errs = append(errs, err)
 		}
 	}
-	err = errors.Join(append(errs, s.deliver(c.Printer))...)
+	errs = append(errs, s.deliver(c.Printer))
+	for _, p := range sources {
+		if p.ID == "telegram" {
+			errs = append(errs, s.notifyTelegram(ctx, p, c.Telegram.TodoChannel))
+		}
+	}
+	err = errors.Join(errs...)
 	s.mu.Lock()
 	s.lastError = ""
 	if err != nil {
@@ -311,6 +324,10 @@ func (s *Service) poll(ctx context.Context, p plugin, ai AIConfig) error {
 			continue
 		}
 		known[id] = true
+		item := queueItem{}
+		if p.ID == "telegram" {
+			item.TelegramBot, item.TelegramChat = key, e.ChatID
+		}
 		data := e.Raw
 		if len(data) != 0 {
 			if !p.AllowRaw || len(data) > 256<<10 || e.Layout != nil || e.Template != "" || e.AI != "" {
@@ -321,6 +338,15 @@ func (s *Service) poll(ctx context.Context, p plugin, ai AIConfig) error {
 			if err != nil {
 				return fmt.Errorf("插件 %s: %w", p.ID, err)
 			}
+			if item.TelegramChat != 0 && e.Template == "todo" {
+				var lines []string
+				for _, block := range layout.Blocks {
+					if block.Type == "text" {
+						lines = append(lines, block.Text)
+					}
+				}
+				item.TodoText = "待办：" + limitText(e.Title, 180) + "\n" + strings.Join(lines, "\n")
+			}
 			data, err = printData(layout)
 			if err != nil {
 				return fmt.Errorf("插件 %s: %w", p.ID, err)
@@ -329,7 +355,9 @@ func (s *Service) poll(ctx context.Context, p plugin, ai AIConfig) error {
 		if e.Time.IsZero() {
 			e.Time = time.Now()
 		}
-		items = append(items, queueItem{Entry: Entry{ID: id, Title: e.Title, Time: e.Time, State: "pending"}, Data: data})
+		item.Entry = Entry{ID: id, Title: e.Title, Time: e.Time, State: "pending"}
+		item.Data = data
+		items = append(items, item)
 	}
 	if cursor == result.Cursor && len(items) == 0 {
 		return nil
@@ -406,6 +434,11 @@ func (s *Service) deliver(printer string) error {
 	defer s.mu.Unlock()
 	for i := range s.queue.Items {
 		job := &s.queue.Items[i]
+		if job.State == "submitted" && job.SpoolID != 0 {
+			if err := s.refreshPrintStatus(job); err != nil {
+				return err
+			}
+		}
 		if job.State != "pending" {
 			continue
 		}
@@ -414,10 +447,17 @@ func (s *Service) deliver(printer string) error {
 			job.State = "pending"
 			return err
 		}
-		if err := spool.Print(printer, job.Data); err != nil {
+		id, err := spool.Submit(printer, printDocument(job.ID), job.Data)
+		if err != nil {
 			return err
 		}
 		job.State = "submitted"
+		job.SpoolID, job.Printer = id, printer
+		if printed, tracked := spool.ReportedPrinted(printer, id, printDocument(job.ID)); printed {
+			job.State, job.SpoolID = "printed", 0
+		} else if !tracked {
+			job.SpoolID = 0
+		}
 		data := job.Data
 		job.Data = nil
 		if err := s.saveQueue(); err != nil {
@@ -425,6 +465,25 @@ func (s *Service) deliver(printer string) error {
 			job.Data = data
 			return err
 		}
+	}
+	return nil
+}
+
+func printDocument(id string) string { return "Crier " + id }
+
+func (s *Service) refreshPrintStatus(job *queueItem) error {
+	printed, tracked := spool.ReportedPrinted(job.Printer, job.SpoolID, printDocument(job.ID))
+	if !printed && tracked {
+		return nil
+	}
+	old := *job
+	job.SpoolID = 0
+	if printed {
+		job.State = "printed"
+	}
+	if err := s.saveQueue(); err != nil {
+		*job = old
+		return err
 	}
 	return nil
 }
@@ -450,7 +509,7 @@ func (s *Service) Acknowledge(id string) error {
 		if job.State == "acknowledged" {
 			return nil
 		}
-		if job.State != "submitted" && job.State != "uncertain" {
+		if job.State != "submitted" && job.State != "uncertain" && job.State != "printed" {
 			return errors.New("尚未提交打印")
 		}
 		old := *job

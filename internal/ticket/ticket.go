@@ -36,6 +36,14 @@ type Block struct {
 	// header
 	Title    string `json:"title,omitempty"`
 	Subtitle string `json:"subtitle,omitempty"`
+	// Icon selects the category glyph drawn beside the header title, matching
+	// the original Telefax header artwork: event, deadline, submission,
+	// notice, code, todo, bill, ad, sender, general. Empty keeps the plain
+	// centred header; any other value falls back to the envelope.
+	Icon string `json:"icon,omitempty"`
+	// Meta is a short timestamp shown at the right edge of the header when it
+	// fits beside the title, otherwise on its own line above the subtitle.
+	Meta string `json:"meta,omitempty"`
 
 	// qr
 	Data string `json:"data,omitempty"`

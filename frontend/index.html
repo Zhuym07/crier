@@ -17,6 +17,7 @@
     </div>
     <nav class="nav">
       <button type="button" class="nav-item is-active" data-view="dashboard">首页</button>
+      <button type="button" class="nav-item" data-view="plugins">插件</button>
       <button type="button" class="nav-item" data-view="settings">设置</button>
     </nav>
     <div class="sidebar-foot">
@@ -68,37 +69,19 @@
       </section>
     </section>
 
-    <section class="view" id="view-settings">
+    <section class="view" id="view-plugins">
       <header class="page-head">
         <div>
-          <h1>设置</h1>
-          <p class="sub">改动需要保存后才会生效。</p>
+          <h1>插件</h1>
+          <p class="sub">插件决定从哪里收取要打印的内容。内置通道在这里启用，外部程序需要你从本地导入。</p>
         </div>
         <div class="page-actions">
-          <button type="button" class="btn btn-quiet" id="btn-rerun">重新引导</button>
-          <button type="button" class="btn" id="btn-save">保存</button>
+          <span class="chip" id="plugins-chip">无外部插件</span>
+          <button type="button" class="btn" id="btn-plugin-save">保存</button>
         </div>
       </header>
 
-      <form class="settings" id="settings-form" novalidate>
-        <article class="card">
-          <h2>打印机</h2>
-          <div class="field">
-            <label for="s-printer">设备</label>
-            <div class="field-row">
-              <select id="s-printer" data-field="printer"></select>
-              <button type="button" class="btn btn-quiet" id="s-printers-refresh">刷新</button>
-            </div>
-          </div>
-          <div class="row-actions">
-            <button type="button" class="btn btn-quiet" id="s-test-print">测试打印</button>
-            <button type="button" class="btn btn-quiet" id="s-preview">看效果</button>
-          </div>
-          <div class="preview" id="s-preview-box" hidden>
-            <img id="s-preview-img" alt="小票预览" />
-          </div>
-        </article>
-
+      <form class="settings" id="plugins-form" novalidate>
         <article class="card">
           <div class="card-head">
             <h2>邮箱通道</h2>
@@ -133,32 +116,6 @@
 
         <article class="card">
           <div class="card-head">
-            <h2>AI 整理</h2>
-            <button type="button" class="switch" role="switch" aria-checked="false"
-                    data-field="ai.enabled" data-kind="bool" aria-label="启用 AI 整理"><span></span></button>
-          </div>
-          <div class="field">
-            <label for="s-ai-url">接口地址（HTTP / HTTPS）</label>
-            <input id="s-ai-url" type="text" autocomplete="off" spellcheck="false"
-                   data-field="ai.url" placeholder="https://api.example.com/v1/chat/completions" />
-          </div>
-          <div class="field">
-            <label for="s-ai-key">密钥</label>
-            <input id="s-ai-key" type="password" autocomplete="off"
-                   data-field="ai.key" placeholder="sk-..." />
-          </div>
-          <div class="field">
-            <label for="s-ai-model">模型</label>
-            <input id="s-ai-model" type="text" autocomplete="off" spellcheck="false"
-                   data-field="ai.model" placeholder="gpt-4o-mini" />
-          </div>
-          <div class="row-actions">
-            <button type="button" class="btn btn-quiet" id="s-test-ai">测试接口</button>
-          </div>
-        </article>
-
-        <article class="card">
-          <div class="card-head">
             <h2>Telegram 打印</h2>
             <button type="button" class="switch" role="switch" aria-checked="false"
                     data-field="telegram.enabled" data-kind="bool" aria-label="启用 Telegram 打印"><span></span></button>
@@ -182,6 +139,120 @@
           <div class="field">
             <label for="s-telegram-todo">待办频道 ID（可选）</label>
             <input id="s-telegram-todo" type="text" autocomplete="off" data-field="telegram.todoChannel" />
+          </div>
+        </article>
+      </form>
+
+      <section class="stack plugins-ext">
+        <div class="stack-head">
+          <div>
+            <h2>外部插件</h2>
+            <p class="hint">独立的 .exe 程序，通过标准输入输出交换 JSON。只会运行你亲自选中并确认的程序。</p>
+          </div>
+          <div class="row-actions">
+            <button type="button" class="btn btn-quiet btn-sm" id="btn-plugin-import">导入本地插件</button>
+            <button type="button" class="btn btn-quiet btn-sm" id="btn-plugin-release">官方下载</button>
+          </div>
+        </div>
+
+        <ul class="plugin-list" id="plugin-list"></ul>
+        <p class="empty" id="plugins-empty">还没有外部插件。安装包自带的邮箱与 Telegram 通道已在上方。</p>
+
+        <article class="card plugin-editor" id="plugin-editor" hidden>
+          <div class="card-head">
+            <h2 id="plugin-editor-title">导入本地插件</h2>
+            <button type="button" class="btn btn-quiet btn-sm" id="plugin-editor-cancel">取消</button>
+          </div>
+          <p class="hint" id="plugin-editor-hint"></p>
+          <div class="field">
+            <label for="plugin-id">插件 ID</label>
+            <input id="plugin-id" type="text" autocomplete="off" spellcheck="false" placeholder="例如 my-source" />
+          </div>
+          <div class="field">
+            <label for="plugin-exe">程序路径</label>
+            <div class="field-row">
+              <input id="plugin-exe" type="text" readonly autocomplete="off" />
+              <button type="button" class="btn btn-quiet" id="plugin-exe-pick">选择程序</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="plugin-settings">设置（JSON 对象，可选）</label>
+            <textarea id="plugin-settings" rows="4" spellcheck="false" placeholder="{}"></textarea>
+          </div>
+          <div class="checks">
+            <label class="check"><input type="checkbox" id="plugin-allow-ai" />
+              <span>允许此插件标记事件为 AI 整理，按 AI 配置处理。</span></label>
+            <label class="check"><input type="checkbox" id="plugin-allow-raw" />
+              <span>允许插件提交原始打印数据，跳过模板与 AI 处理（仅限完全信任的程序）。</span></label>
+          </div>
+          <div class="row-actions">
+            <button type="button" class="btn" id="plugin-editor-save">保存插件</button>
+          </div>
+          <p class="hint hint-warn">插件以当前 Windows 用户权限在本机运行。只导入你信任的程序。</p>
+        </article>
+
+        <p class="release-note">
+          官方插件发布在 <code id="plugin-release-url">https://github.com/Zhuym07/crier/releases/latest</code>。
+          发布页同时提供安装包与独立插件程序（如 crier-email.exe、crier-telegram.exe）。
+          在浏览器下载插件 .exe 后，用「导入本地插件」选择它；传令不会自动下载或运行任何程序。
+        </p>
+      </section>
+    </section>
+
+    <section class="view" id="view-settings">
+      <header class="page-head">
+        <div>
+          <h1>设置</h1>
+          <p class="sub">打印机、AI 与开机自启在这里调整；邮箱与 Telegram 已移到「插件」页。</p>
+        </div>
+        <div class="page-actions">
+          <button type="button" class="btn btn-quiet" id="btn-rerun">重新引导</button>
+          <button type="button" class="btn" id="btn-save">保存</button>
+        </div>
+      </header>
+
+      <form class="settings" id="settings-form" novalidate>
+        <article class="card">
+          <h2>打印机</h2>
+          <div class="field">
+            <label for="s-printer">设备</label>
+            <div class="field-row">
+              <select id="s-printer" data-field="printer"></select>
+              <button type="button" class="btn btn-quiet" id="s-printers-refresh">刷新</button>
+            </div>
+          </div>
+          <div class="row-actions">
+            <button type="button" class="btn btn-quiet" id="s-test-print">测试打印</button>
+            <button type="button" class="btn btn-quiet" id="s-preview">看效果</button>
+          </div>
+          <div class="preview" id="s-preview-box" hidden>
+            <img id="s-preview-img" alt="小票预览" />
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>AI 整理</h2>
+            <button type="button" class="switch" role="switch" aria-checked="false"
+                    data-field="ai.enabled" data-kind="bool" aria-label="启用 AI 整理"><span></span></button>
+          </div>
+          <div class="field">
+            <label for="s-ai-url">接口地址（HTTP / HTTPS）</label>
+            <input id="s-ai-url" type="text" autocomplete="off" spellcheck="false"
+                   data-field="ai.url" placeholder="https://api.example.com/v1/chat/completions" />
+          </div>
+          <div class="field">
+            <label for="s-ai-key">密钥</label>
+            <input id="s-ai-key" type="password" autocomplete="off"
+                   data-field="ai.key" placeholder="sk-..." />
+          </div>
+          <div class="field">
+            <label for="s-ai-model">模型</label>
+            <input id="s-ai-model" type="text" autocomplete="off" spellcheck="false"
+                   data-field="ai.model" placeholder="gpt-4o-mini" />
+          </div>
+          <div class="row-actions">
+            <button type="button" class="btn btn-quiet" id="s-test-ai">测试接口</button>
           </div>
         </article>
 

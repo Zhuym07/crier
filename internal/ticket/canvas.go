@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 
+	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/font/sfnt"
@@ -118,11 +119,15 @@ const (
 	StyleDim    = "dim"
 )
 
+// Sizes follow the Telefax/ESC/POS grid: normal body text is 24 dots tall (one
+// full-width character per 24 dots), which is what the original 58 mm tickets
+// printed at; large is the doubled headline size and dim is the small date
+// face. A 384 dot head therefore carries 16 full-width characters per line.
 var styleSize = map[string]int{
-	StyleNormal: 16,
-	StyleBold:   16,
-	StyleLarge:  24,
-	StyleDim:    12,
+	StyleNormal: 24,
+	StyleBold:   24,
+	StyleLarge:  48,
+	StyleDim:    18,
 }
 
 // Candidates are tried in order; the first readable file wins. Microsoft YaHei
@@ -153,11 +158,18 @@ func Face(style string) (font.Face, error) {
 	if !ok {
 		return nil, fmt.Errorf("ticket: unknown text style %q", style)
 	}
+	return faceAt(px, style == StyleBold || style == StyleLarge)
+}
+
+// faceAt returns a face at an explicit pixel size. Header typography uses sizes
+// that are not part of the four body styles (a large label, a smaller date and
+// a bold sender line), so they share this loader and its cache.
+func faceAt(px int, bold bool) (font.Face, error) {
 	files := regularFontFiles
-	if style == StyleBold || style == StyleLarge {
+	if bold {
 		files = boldFontFiles
 	}
-	key := fmt.Sprintf("%s/%d", style, px)
+	key := fmt.Sprintf("%d/%t", px, bold)
 	faceMu.Lock()
 	defer faceMu.Unlock()
 	if f, ok := faceCache[key]; ok {
@@ -210,6 +222,17 @@ func faceFromFontData(data []byte, px int) (font.Face, error) {
 		DPI:     72, // one point is one dot, so Size is the pixel height
 		Hinting: font.HintingFull,
 	})
+}
+
+// pasteIcon scales one master-size category glyph into the surface. The icons
+// are authored at 48 dots and shrunk with the same smooth filter the original
+// printer used, which keeps their stroke weight balanced against the text.
+func (c *Canvas) pasteIcon(icon *image.Gray, x, y, size int) {
+	dst := image.Rect(x, y, x+size, y+size).Intersect(c.img.Rect)
+	if dst.Empty() {
+		return
+	}
+	draw.CatmullRom.Scale(c.img, dst, icon, icon.Bounds(), draw.Over, nil)
 }
 
 // inkRect fills a rectangle with ink, clipped to the surface.

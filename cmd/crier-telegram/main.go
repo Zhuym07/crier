@@ -48,6 +48,8 @@ type params struct {
 	ImageCharsPerLine   int     `json:"chars_per_line"`
 	LineHeightPx        int     `json:"line_height_px"`
 	Cursor              string  `json:"cursor"`
+	ChatID              int64   `json:"chat_id"`
+	Text                string  `json:"text"`
 }
 
 func main() {
@@ -73,7 +75,7 @@ func handle(line []byte, diag io.Writer) response {
 	if q.JSONRPC != "2.0" || len(q.ID) == 0 {
 		return fail(q.ID, invalidRequest, "not a JSON-RPC 2.0 request with an id")
 	}
-	if q.Method != "poll" {
+	if q.Method != "poll" && q.Method != "notify" {
 		return fail(q.ID, methodNotFound, "unknown method "+q.Method)
 	}
 	var p params
@@ -87,7 +89,14 @@ func handle(line []byte, diag io.Writer) response {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 	defer cancel()
-	r, e := telegram.Poll(ctx, telegram.Config{Token: p.Token, ProxyURL: p.ProxyURL, BatchTimeoutSeconds: p.BatchTimeoutSeconds, MaxPoints: p.MaxPoints, RechargePerSec: p.RechargePerSec, WhitelistUserIDs: p.WhitelistUserIDs, LogChannelID: p.LogChannelID, TodoChannelID: p.TodoChannelID, ImageCharsPerLine: p.ImageCharsPerLine, LineHeightPx: p.LineHeightPx, Log: diag}, p.Cursor)
+	cfg := telegram.Config{Token: p.Token, ProxyURL: p.ProxyURL, BatchTimeoutSeconds: p.BatchTimeoutSeconds, MaxPoints: p.MaxPoints, RechargePerSec: p.RechargePerSec, WhitelistUserIDs: p.WhitelistUserIDs, LogChannelID: p.LogChannelID, TodoChannelID: p.TodoChannelID, ImageCharsPerLine: p.ImageCharsPerLine, LineHeightPx: p.LineHeightPx, Log: diag}
+	if q.Method == "notify" {
+		if err := telegram.Notify(ctx, cfg, p.ChatID, p.Text); err != nil {
+			return fail(q.ID, upstream, err.Error())
+		}
+		return response{JSONRPC: "2.0", ID: q.ID, Result: true}
+	}
+	r, e := telegram.Poll(ctx, cfg, p.Cursor)
 	if e != nil {
 		fmt.Fprintln(diag, "crier-telegram: poll:", e)
 		return fail(q.ID, upstream, e.Error())
