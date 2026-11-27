@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log"
 
 	"github.com/Zhuym07/crier/internal/crier"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -14,6 +15,8 @@ type App struct {
 	svc       *crier.Service
 	ctx       context.Context
 	autostart bool
+	tray      *tray
+	quitting  bool
 }
 
 func newApp(svc *crier.Service, autostart bool) *App {
@@ -25,19 +28,56 @@ func newApp(svc *crier.Service, autostart bool) *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	go a.svc.Start(ctx)
-}
-
-// domReady 把开机自启的窗口收进任务栏，用户需要时再点开。
-func (a *App) domReady(ctx context.Context) {
-	if a.autostart {
-		runtime.WindowMinimise(ctx)
+	if a.tray == nil {
+		return
+	}
+	if err := a.tray.start(); err != nil {
+		log.Printf("托盘图标不可用: %v", err)
 	}
 }
 
+// domReady 把开机自启的窗口收进托盘，用户需要时点托盘图标再打开。
+func (a *App) domReady(ctx context.Context) {
+	if a.autostart {
+		runtime.WindowHide(ctx)
+	}
+}
+
+// beforeClose 拦下窗口关闭：没有托盘时直接退出，有托盘时收进托盘。
+func (a *App) beforeClose(ctx context.Context) bool {
+	if a.quitting || a.tray == nil || !a.tray.ready() {
+		return false
+	}
+	runtime.WindowHide(ctx)
+	return true
+}
+
+// shutdown 在程序退出时移除托盘图标，避免留下幽灵图标。
+func (a *App) shutdown(ctx context.Context) {
+	if a.tray != nil {
+		a.tray.remove()
+	}
+}
+
+// showWindow 从托盘恢复窗口，供单实例启动与托盘菜单共用。
 func (a *App) showWindow() {
 	if a.ctx != nil {
 		runtime.WindowUnminimise(a.ctx)
 		runtime.WindowShow(a.ctx)
+	}
+}
+
+// hideWindow 把窗口收进托盘，后台收信与打印保持运行。
+func (a *App) hideWindow() {
+	if a.ctx != nil {
+		runtime.WindowHide(a.ctx)
+	}
+}
+
+func (a *App) quit() {
+	a.quitting = true
+	if a.ctx != nil {
+		runtime.Quit(a.ctx)
 	}
 }
 
@@ -143,4 +183,19 @@ func (a *App) OpenReleasesPage() error {
 	}
 	runtime.BrowserOpenURL(a.ctx, crier.ReleasesPage)
 	return nil
+}
+
+// HideToTray 关闭主窗口时收进托盘而不是退出，保证后台继续收信。
+func (a *App) HideToTray() { a.hideWindow() }
+
+// Quit 是托盘菜单的「退出」，结束后台服务并退出程序。
+func (a *App) Quit() { a.quit() }
+
+// OpenSettings 从托盘菜单跳到设置页。
+func (a *App) OpenSettings() {
+	if a.ctx == nil {
+		return
+	}
+	a.showWindow()
+	runtime.EventsEmit(a.ctx, "crier:open-settings")
 }

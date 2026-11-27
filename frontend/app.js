@@ -708,6 +708,12 @@ function bindEvents() {
     });
   }
 
+  // 托盘右键「设置」通过事件让界面直接跳到设置页。
+  window.runtime.EventsOn('crier:open-settings', () => {
+    closeOobe();
+    showView('settings');
+  });
+
   for (const item of $$('.nav-item')) {
     item.addEventListener('click', () => showView(item.dataset.view));
   }

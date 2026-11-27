@@ -34,6 +34,7 @@ func main() {
 	}
 
 	app := newApp(svc, *autostart)
+	app.tray = newTray(app)
 	err = wails.Run(&options.App{
 		Title:            "传令 Crier",
 		Width:            1080,
@@ -44,6 +45,8 @@ func main() {
 		AssetServer:      &assetserver.Options{Assets: assets},
 		OnStartup:        app.startup,
 		OnDomReady:       app.domReady,
+		OnBeforeClose:    app.beforeClose,
+		OnShutdown:       app.shutdown,
 		Bind:             []interface{}{app},
 		SingleInstanceLock: &options.SingleInstanceLock{
 			UniqueId:               "com.github.Zhuym07.crier",
