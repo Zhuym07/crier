@@ -103,3 +103,44 @@ func (a *App) OpenPluginReleasePage() error {
 	runtime.BrowserOpenURL(a.ctx, crier.OfficialPluginReleaseURL)
 	return nil
 }
+
+// CheckUpdate 查询 GitHub 上的最新发布；检查失败只会出现在 Error 里，不影响使用。
+func (a *App) CheckUpdate() crier.UpdateInfo {
+	ctx := context.Background()
+	if a.ctx != nil {
+		ctx = a.ctx
+	}
+	return a.svc.CheckUpdate(ctx)
+}
+
+// CurrentVersion 是本次构建注入的版本号。
+func (a *App) CurrentVersion() string { return a.svc.CurrentVersion() }
+
+// DownloadUpdate 下载并校验新版安装包，返回本地路径。
+func (a *App) DownloadUpdate() (string, error) {
+	ctx := context.Background()
+	if a.ctx != nil {
+		ctx = a.ctx
+	}
+	return a.svc.DownloadUpdate(ctx)
+}
+
+// InstallUpdate 启动已下载的安装包，随后退出让安装程序替换文件。
+func (a *App) InstallUpdate(path string) error {
+	if err := a.svc.LaunchInstaller(path); err != nil {
+		return err
+	}
+	if a.ctx != nil {
+		runtime.Quit(a.ctx)
+	}
+	return nil
+}
+
+// OpenReleasesPage 打开发布页，供人手动下载。
+func (a *App) OpenReleasesPage() error {
+	if a.ctx == nil {
+		return errors.New("窗口尚未就绪")
+	}
+	runtime.BrowserOpenURL(a.ctx, crier.ReleasesPage)
+	return nil
+}

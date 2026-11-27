@@ -38,4 +38,4 @@ Crier 启动插件进程，向 stdin 写入一行 JSON-RPC 2.0 请求并关闭 s
 
 ## 构建
 
-在 Windows 上安装 Go 和 Inno Setup 后运行 `./build.ps1`。可通过 `-Go` 和 `-ISCC` 指定工具路径。安装包生成于 `dist/`。执行 `go test ./...` 运行测试。
+在 Windows 上安装 Go 和 Inno Setup 后运行 `./build.ps1`。可通过 `-Go` 和 `-ISCC` 指定工具路径。版本号写在 `VERSION`，构建时会注入程序和安装包。安装包与校验清单 `SHA256SUMS` 生成于 `dist/`。发布时把这两个文件一起上传到同一个 GitHub Release，应用内更新才能校验安装包。执行 `go test ./...` 运行测试。

@@ -22,6 +22,7 @@ let plugins = [];
 let pluginEditor = null; // null，或 { id, executable }：编辑面板当前对应的插件
 let step = 0;
 let pollTimer = 0;
+let currentVersion = '';
 let toastTimer = 0;
 
 const PLUGINS_EMPTY = '还没有外部插件。安装包自带的邮箱与 Telegram 通道已在上方。';
@@ -637,6 +638,60 @@ function toast(message, isError = false) {
   }, 2600);
 }
 
+let updateInfo = null; // 最近一次检查更新的结果；null 表示还没检查过
+let updatePath = ''; // 已下载并校验通过的安装包路径
+
+function renderVersion() {
+  const chip = $('#version-current');
+  const status = $('#version-status');
+  const install = $('#s-download-update');
+  chip.textContent = `v${updateInfo ? updateInfo.current : currentVersion || '—'}`;
+  install.hidden = true;
+  if (!updateInfo) {
+    status.textContent = '检查更新只会访问 GitHub 的公开发布页，不会自动安装。';
+    return;
+  }
+  if (updateInfo.error) {
+    status.textContent = `检查失败：${updateInfo.error}`;
+    return;
+  }
+  if (!updateInfo.available) {
+    status.textContent = `已是最新版本（v${updateInfo.current}）。`;
+    return;
+  }
+  status.textContent = `发现新版本 v${updateInfo.latest}，当前 v${updateInfo.current}。`;
+  install.hidden = false;
+  install.textContent = updatePath ? '安装并重启' : '下载并安装';
+}
+
+async function checkUpdate(button) {
+  await withBusy(button, async () => {
+    updatePath = '';
+    updateInfo = await api.CheckUpdate();
+    renderVersion();
+    if (updateInfo.error) toast(`检查失败：${updateInfo.error}`, true);
+    else if (updateInfo.available) toast(`发现新版本 v${updateInfo.latest}`);
+    else toast('已是最新版本');
+  });
+}
+
+// 下载后先校验 SHA-256，再运行安装程序覆盖安装；升级范围由用户点按决定。
+async function installUpdate(button) {
+  await withBusy(button, async () => {
+    if (!updatePath) {
+      updatePath = await api.DownloadUpdate();
+      renderVersion();
+      toast('安装包已下载并通过校验，再次点击即可安装');
+      return;
+    }
+    await api.InstallUpdate(updatePath);
+  });
+}
+
+async function openReleasesPage(button) {
+  await withBusy(button, () => api.OpenReleasesPage());
+}
+
 /* ---------- 事件与启动 ---------- */
 
 function bindEvents() {
@@ -671,6 +726,10 @@ function bindEvents() {
   $('#btn-dash-print').addEventListener('click', (e) => testPrint(e.currentTarget));
   $('#btn-save').addEventListener('click', (e) => saveConfig(e.currentTarget));
   $('#btn-rerun').addEventListener('click', (e) => rerunSetup(e.currentTarget));
+
+  $('#s-open-releases').addEventListener('click', (e) => openReleasesPage(e.currentTarget));
+  $('#s-check-update').addEventListener('click', (e) => checkUpdate(e.currentTarget));
+  $('#s-download-update').addEventListener('click', (e) => installUpdate(e.currentTarget));
 
   $('#btn-plugin-save').addEventListener('click', (e) => saveConfig(e.currentTarget));
   $('#btn-plugin-import').addEventListener('click', () => importPlugin());
@@ -734,6 +793,22 @@ async function init() {
   bindEvents();
   await loadHistory();
   await loadPlugins();
+  try {
+    currentVersion = await api.CurrentVersion();
+  } catch {
+    // 版本号只用于展示，读不到时显示占位符。
+  }
+  renderVersion();
+  // 启动后在后台查一次更新，失败不影响主流程，也不弹窗打扰。
+  api
+    .CheckUpdate()
+    .then((info) => {
+      if (!info || !info.available) return;
+      updateInfo = info;
+      renderVersion();
+      toast(`发现新版本 v${info.latest}，可在设置页更新`);
+    })
+    .catch(() => {});
   try {
     const url = await api.PluginReleaseURL();
     if (url) $('#plugin-release-url').textContent = url;

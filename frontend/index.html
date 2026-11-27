@@ -264,6 +264,19 @@
           </div>
           <p class="hint">登录 Windows 后在后台启动，不弹出窗口。</p>
         </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>版本与更新</h2>
+            <span class="chip" id="version-current">—</span>
+          </div>
+          <p class="hint" id="version-status">检查更新只会访问 GitHub 的公开发布页，不会自动安装。</p>
+          <div class="row-actions">
+            <button type="button" class="btn btn-quiet" id="s-check-update">检查更新</button>
+            <button type="button" class="btn btn-quiet" id="s-download-update" hidden>下载并安装</button>
+            <button type="button" class="btn btn-quiet" id="s-open-releases">打开发布页</button>
+          </div>
+        </article>
       </form>
     </section>
   </main>
