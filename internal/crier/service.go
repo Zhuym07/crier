@@ -76,7 +76,7 @@ func printData(layout ticket.Layout) ([]byte, error) {
 }
 
 func (s *Service) TestPrint(name string) error {
-	data, err := printData(testLayout())
+	data, err := ticket.ClassicESCPos(testLayout())
 	if err != nil {
 		return err
 	}
@@ -347,7 +347,11 @@ func (s *Service) poll(ctx context.Context, p plugin, ai AIConfig) error {
 				}
 				item.TodoText = "待办：" + limitText(e.Title, 180) + "\n" + strings.Join(lines, "\n")
 			}
-			data, err = printData(layout)
+			if e.Layout == nil && (e.Template == "mail" || e.Template == "todo") {
+				data, err = ticket.ClassicESCPos(layout)
+			} else {
+				data, err = printData(layout)
+			}
 			if err != nil {
 				return fmt.Errorf("插件 %s: %w", p.ID, err)
 			}

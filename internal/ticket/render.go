@@ -30,6 +30,10 @@ var renderMu sync.Mutex // opentype faces use shared mutable scratch buffers.
 
 // Render draws a layout onto a fresh canvas at the requested paper geometry.
 func Render(layout Layout, paper Paper) (*Canvas, error) {
+	return render(layout, paper, true)
+}
+
+func render(layout Layout, paper Paper, headerDivider bool) (*Canvas, error) {
 	renderMu.Lock()
 	defer renderMu.Unlock()
 	if layout.Version != 0 && layout.Version != 1 {
@@ -38,7 +42,7 @@ func Render(layout Layout, paper Paper) (*Canvas, error) {
 	if len(layout.Blocks) == 0 {
 		return nil, errors.New("ticket: layout has no blocks")
 	}
-	r := &renderer{c: NewCanvas(paper), width: paper.Width}
+	r := &renderer{c: NewCanvas(paper), width: paper.Width, omitHeaderDivider: !headerDivider}
 	if r.width <= 0 {
 		r.width = DefaultPaper().Width
 	}
@@ -52,10 +56,11 @@ func Render(layout Layout, paper Paper) (*Canvas, error) {
 }
 
 type renderer struct {
-	c      *Canvas
-	width  int
-	y      int
-	indent int
+	c                 *Canvas
+	width             int
+	y                 int
+	indent            int
+	omitHeaderDivider bool
 }
 
 func (r *renderer) blocks(blocks []Block) error {
@@ -152,14 +157,14 @@ func (r *renderer) kv(rows []Row, style string) error {
 }
 
 // Header typography, in dots. The values mirror the original Telefax header
-// bitmap: a 36 dot category icon, a 30 dot bold label, an 18 dot date at the
+// bitmap: a 36 dot category icon, a 28 dot bold label, an 18 dot date at the
 // right edge, and a 22 dot bold sender line under a small sender glyph.
 const (
 	hdrIconInset   = 2
 	hdrIconTop     = 6
 	hdrIconSize    = 36
 	hdrTitleX      = 44
-	hdrTitlePX     = 30
+	hdrTitlePX     = 28
 	hdrMetaPX      = 18
 	hdrSenderLeft  = 4
 	hdrSenderX     = 40
@@ -273,6 +278,9 @@ func (r *renderer) iconHeader(b Block) error {
 		height = senderY - top + hdrSenderPitch*len(lines) + 8
 	}
 	r.y = top + height
+	if r.omitHeaderDivider {
+		return nil
+	}
 	return r.divider(false)
 }
 

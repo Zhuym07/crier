@@ -33,7 +33,7 @@ func TestMailTicketHTTPAndStructuredFields(t *testing.T) {
 	if len(layout.Blocks) != 3 || layout.Blocks[2].Style != "large" || !strings.Contains(layout.Blocks[2].Text, "123456") {
 		t.Fatalf("unexpected layout: %+v", layout)
 	}
-	if _, err := printData(layout); err != nil {
+	if _, err := ticket.ClassicESCPos(layout); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -64,7 +64,7 @@ func TestMailTicketHeaderTimeAndEventFields(t *testing.T) {
 	if !strings.Contains(joined, "时间  明天 14:00") || !strings.Contains(joined, "地点  B203") {
 		t.Fatalf("fields missing: %q", joined)
 	}
-	if _, err := printData(layout); err != nil {
+	if _, err := ticket.ClassicESCPos(layout); err != nil {
 		t.Fatal(err)
 	}
 }
